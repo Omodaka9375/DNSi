@@ -125,10 +125,3 @@ Requires Node 22+. 35 kB download, zero runtime dependencies.
 pnpm verify      # typecheck + 26 tests
 pnpm build       # emit dist/
 ```
-
-## Landing page
-
-`docs/index.html` is the GitHub Pages landing page (self-contained, no build
-step, no external assets). To publish: repo Settings, Pages, deploy from the
-`master` branch, `/docs` folder. The markdown docs are linked from it and
-render as normal Pages.
