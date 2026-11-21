@@ -1,6 +1,6 @@
 # DNSi
 
-**Ask an AI a question from any device, on any network, using nothing but DNS.**
+**Access LLMs from any device, on any network, using nothing but DNS.**
 
 No app. No login. No HTTP. Every computer, router, printer and embedded
 controller on earth can look up a domain name. DNSi turns that lookup into a
