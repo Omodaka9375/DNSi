@@ -9,6 +9,13 @@
   "description": "DNSi: Ask an AI a question from any device, on any network, using nothing but DNS.",
   "license": "MIT",
   "homepage": "https://dnsi.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Omodaka9375/DNSi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Omodaka9375/DNSi/issues"
+  },
   "keywords": [
     "dns",
     "llm",
