@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNSI: Ask anything, anywhere. No app.</title>
+<meta name="description" content="DNSI is a question box that rides on DNS, the one service every device on earth can already speak.">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #9aa7b3;
+    --accent: #4ade80;
+    --accent-dim: #22c55e;
+    --code-bg: #010409;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; border-bottom: 1px solid var(--border);
+  }
+  .brand { font-weight: 700; letter-spacing: 0.5px; color: var(--accent); font-size: 18px; }
+  nav .links a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: 14px; }
+  nav .links a:hover { color: var(--text); }
+  header.hero { padding: 88px 0 64px; }
+  h1 { font-size: 44px; line-height: 1.15; font-weight: 800; letter-spacing: -1px; }
+  h1 .accent { color: var(--accent); }
+  .sub { margin-top: 18px; font-size: 19px; color: var(--muted); max-width: 640px; }
+  .hero-code {
+    margin-top: 36px; background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; font: 14px/1.7 ui-monospace, Consolas, monospace;
+    overflow-x: auto;
+  }
+  .hero-code .c { color: var(--muted); }
+  .hero-code .p { color: var(--accent); }
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; margin-bottom: 18px; }
+  h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  p.lead { color: var(--muted); max-width: 660px; margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px 22px;
+  }
+  .card p { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { text-align: left; padding: 12px 14px; border: 1px solid var(--border); }
+  th { background: var(--panel); color: var(--muted); font-weight: 600; }
+  td { color: var(--text); }
+  td.muted { color: var(--muted); }
+  .note {
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 18px 22px; color: var(--muted); font-size: 14.5px;
+  }
+  .note strong { color: var(--text); }
+  ul.plain { list-style: none; }
+  ul.plain li { padding: 8px 0 8px 26px; position: relative; color: var(--muted); }
+  ul.plain li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-dim); }
+  ul.plain li strong { color: var(--text); }
+  .docgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .docgrid a {
+    display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; text-decoration: none; color: var(--text); font-weight: 600; font-size: 14.5px;
+  }
+  .docgrid a span { display: block; color: var(--muted); font-weight: 400; font-size: 13px; margin-top: 4px; }
+  .docgrid a:hover { border-color: var(--accent-dim); }
+  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 13.5px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  code {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 1px 6px; font-size: 0.9em; font-family: ui-monospace, Consolas, monospace;
+  }
+  @media (max-width: 640px) {
+    h1 { font-size: 32px; }
+    header.hero { padding: 56px 0 40px; }
+    nav .links a { margin-left: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">DNSI</div>
+    <div class="links">
+      <a href="#use-cases">Use cases</a>
+      <a href="#run-it">Run it</a>
+      <a href="#costs">Costs</a>
+      <a href="#docs">Docs</a>
+      <a href="https://github.com/">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <h1>Ask anything, anywhere.<br><span class="accent">No app needed.</span></h1>
+    <p class="sub">
+      DNSI is a question box that rides on DNS, the one service every phone,
+      laptop, router and controller on earth can already speak. If a device can
+      look up a domain name, it can ask an AI a question.
+    </p>
+    <div class="hero-code">
+      <span class="c"># your machine</span><br>
+      $ <span class="p">pnpm ask -- "how do I split a git commit"</span><br>
+      <span class="c"># the answer comes back, plus related questions worth asking next</span>
+    </div>
+  </header>
+
+  <section id="what">
+    <h2>What is this?</h2>
+    <p class="lead">
+      Think of directory assistance: you dial a number, say a name, and a person
+      tells you the answer. The internet has had that since 1983. It is called
+      DNS, and until now it only knew one kind of answer: what number is this name?
+    </p>
+    <p class="lead">
+      DNSI teaches it a new trick. The question travels as a domain name,
+      the answer comes back as the reply. No app to install, no account, no
+      website to open.
+    </p>
+    <div class="hero-code">
+      dig +short TXT "what is dnsi" @your-server.example.com
+    </div>
+  </section>
+
+  <section id="use-cases">
+    <h2>What people use it for</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Terminal Q&amp;A</h3>
+        <p>One command instead of opening a browser. You live in a shell; the answer lands in it.</p>
+      </div>
+      <div class="card">
+        <h3>Blocked networks</h3>
+        <p>Hotel wifi, airplanes, locked-down offices. They block apps and websites. DNS is the one lane that stays open.</p>
+      </div>
+      <div class="card">
+        <h3>Dumb devices</h3>
+        <p>A printer, a sensor, 20 year old firmware. A plain name lookup returns the answer text, plus a clock, a UUID and a hash.</p>
+      </div>
+      <div class="card">
+        <h3>Team knowledge</h3>
+        <p>"How do I connect to the VPN" becomes a name anyone in the office can look up. IT writes it once, everyone asks by typing.</p>
+      </div>
+      <div class="card">
+        <h3>AI agents</h3>
+        <p>Sandboxed agents that may only resolve DNS get a sanctioned question and tool channel. Rate limited, log-free.</p>
+      </div>
+      <div class="card">
+        <h3>Anything with a resolver</h3>
+        <p>dig, nslookup, Python, C, BusyBox. If it can resolve a name, it is already a DNSI client.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="run-it">
+    <h2>Three ways to run it</h2>
+    <table>
+      <tr><th>Where</th><th>Who can ask</th><th>Good for</th><th>Cost</th></tr>
+      <tr>
+        <td>Your machine</td><td>only you</td>
+        <td class="muted">personal terminal Q&amp;A, trying it out</td><td>free</td>
+      </tr>
+      <tr>
+        <td>Your LAN</td><td>everyone on the network</td>
+        <td class="muted">team knowledge, device fleets</td><td>free + AI tokens</td>
+      </tr>
+      <tr>
+        <td>The internet</td><td>anyone, or token holders</td>
+        <td class="muted">public utility, paid service</td><td>~$5/month VPS + AI tokens</td>
+      </tr>
+    </table>
+    <p class="lead" style="margin-top:18px">
+      One deployment can serve an open zone and a token-protected zone at the
+      same time. A wrong or missing token is refused.
+    </p>
+  </section>
+
+  <section id="costs">
+    <h2>What it costs</h2>
+    <ul class="plain">
+      <li><strong>Trying it locally: free.</strong> No API key, no internet needed.</li>
+      <li><strong>Public hobby scale: under $10/month.</strong> A small VPS plus roughly $1-5 of AI tokens for a thousand questions a day.</li>
+      <li><strong>Repeat questions are free.</strong> Answers are cached (canonical answers for an hour), so popular questions cost nothing after the first ask.</li>
+      <li><strong>Tools never touch the AI.</strong> Time, UUID and hash are answered locally in microseconds.</li>
+    </ul>
+  </section>
+
+  <section id="honest">
+    <h2>Is this a hack?</h2>
+    <div class="note">
+      <p>
+        It is a deliberate repurposing of the internet's oldest
+        question-answering machine, built with the safeguards security teams
+        expect: rate limits, load shedding, zero per-user logging, and an
+        option to answer over TCP only. Questions and answers travel in plain
+        text, so do not send passwords through it.
+      </p>
+    </div>
+  </section>
+
+  <section id="docs">
+    <h2>Documentation</h2>
+    <div class="docgrid">
+      <a href="PLAIN.md">PLAIN.md <span>what this is in plain words</span></a>
+      <a href="PROTOCOL.md">PROTOCOL.md <span>the exact wire format</span></a>
+      <a href="AGENTS.md">AGENTS.md <span>agents, devices, hostile networks</span></a>
+      <a href="ARCHITECTURE.md">ARCHITECTURE.md <span>components and caching</span></a>
+      <a href="OPERATIONS.md">OPERATIONS.md <span>deployment and configuration</span></a>
+    </div>
+  </section>
+
+  <footer>
+    DNSI: Domain Name System Intelligence. 35 kB, zero runtime dependencies,
+    Node 22+. <a href="https://github.com/">Source on GitHub</a>.
+  </footer>
+</div>
+
+</body>
+</html>

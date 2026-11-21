@@ -31,6 +31,21 @@ in exactly those places, because it is nothing but a name lookup.
 - **AI agents.** Sandboxed agents that may only resolve DNS get a sanctioned
   question and tool channel, rate limited and log-free.
 
+## How is this different
+
+Asking an AI over DNS exists as demo projects. DNSI is built as a service
+instead of a demo:
+
+- **Tool calls, not just chat.** `tool.time`, `tool.uuid`, `tool.hash` are
+  answered locally in microseconds and never touch the AI.
+- **Dumb devices first.** A plain `gethostbyname` call returns the answer
+  text. No TXT parsing, no special client.
+- **A knowledge graph.** Every answer carries related questions as resolvable
+  names, so clients and resolvers can walk from one question to the next.
+- **Deployable engineering.** Long questions ride in sessions, large answers
+  negotiate EDNS, private zones use tokens, and the whole thing is 35 kB with
+  zero runtime dependencies.
+
 ## Three ways to run it
 
 | Mode | Who can ask | Use it for | Cost |
@@ -103,3 +118,10 @@ Requires Node 22+. 35 kB download, zero runtime dependencies.
 pnpm verify      # typecheck + 26 tests
 pnpm build       # emit dist/
 ```
+
+## Landing page
+
+`docs/index.html` is the GitHub Pages landing page (self-contained, no build
+step, no external assets). To publish: repo Settings, Pages, deploy from the
+`master` branch, `/docs` folder. The markdown docs are linked from it and
+render as normal Pages.
