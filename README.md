@@ -1,120 +1,105 @@
-# DNSI: Domain Name System Intelligence
+# DNSI
 
-> **New here?** Read [docs/PLAIN.md](docs/PLAIN.md) first: what this is in
-> plain words, when you would actually use it, and whether it is a hack.
+**Ask an AI a question from any device, on any network, using nothing but DNS.**
 
-DNS is the most reachable API on earth: every OS, router, and embedded device
-speaks it. DNSI points that 1983 question-answering machine at an LLM.
+No app. No login. No HTTP. Every computer, router, printer and embedded
+controller on earth can look up a domain name. DNSI turns that lookup into a
+question, and the answer comes back as the reply.
 
-**Killer use case:** the knowledge and tool API for environments that have no
-HTTP client. Sandboxed AI agents (code interpreters, CI containers) may only
-do DNS. Embedded and legacy systems only have `gethostbyname`. Hostile and
-captive networks allow port 53 through when 443 is blocked. For all of them,
-a question is a hostname and an answer is a DNS record.
+```bash
+pnpm ask -- "how do I split a git commit"
+# answer comes back, plus related questions worth asking next
+```
 
-## Wire contract
+## Why it exists
 
-- **Question in the QNAME.** `What is DNSI?` becomes
-  `what-is-dnsi.ask.dnsi.test` (space -> `-`, everything outside `[a-z0-9]`
-  percent-encoded, packed into labels of <= 50 bytes).
-- **Answer in TXT.** The response body is chunked into 255-byte strings on
-  UTF-8 code point boundaries.
-- **Related questions as CNAME.** Each answer carries CNAMEs pointing at
-  follow-up questions, which are themselves resolvable. Knowledge becomes
-  addressable: a question is a domain name you can cache, delegate, resolve.
-- **Tool calls.** `tool.time.ask.dnsi.test`, `tool.hash.<input>.ask...`
-  (`time`, `echo`, `uuid`, `hash`). Deterministic results are canonical.
-- **gethostbyname mode.** An A query returns the answer packed into A
-  records (4 bytes per address) - a pure `gethostbyname` device reads the
-  answer from `h_addr_list`. `pnpm ask -- "q" --a` uses it.
-- **512-byte safety.** UDP answers that would not fit are returned
-  TC=1 (retry over TCP); TCP is always complete. EDNS0 senders get the
-  full answer over UDP up to their advertised payload size.
-- **Sessions.** Questions over 200 bytes ride in `sess.<sid>.<n>.<total>`
-  chunk queries; `pnpm ask` switches automatically. Up to ~1000 bytes.
-- **Per-zone tokens.** A zone can require `t.<token>` in the name; wrong
-  or missing token is REFUSED (rcode 5). Set via `DNSI_ZONES=zone:token`.
-- **TTLs.** 60 for dynamic answers (LLM output, time), 3600 for canonical
-  (deterministic tool results). Answers get served free from cache forever
-  after the first resolution.
-- **Opsec.** Answer over TCP only is one flag away (`DNSI_TCP_ONLY=1`).
-  Per-resolver token-bucket rate limiting, in-flight cap with SERVFAIL
-  shedding, no per-user logging (one startup line, nothing else).
+Some networks block everything except DNS: hotel wifi, airplanes, locked-down
+offices. Some devices cannot run apps at all: sensors, PLCs, 20 year old
+firmware. All of them can look up a name. DNSI is the question box that works
+in exactly those places, because it is nothing but a name lookup.
 
-## Quickstart
+## What people use it for
+
+- **Terminal Q&A.** One command instead of opening a browser.
+- **Blocked networks.** The one lane every network leaves open.
+- **Dumb devices.** A `gethostbyname` call returns the answer text. Also gives
+  constrained devices a clock, a UUID and a hash without any libraries
+  (`tool.time`, `tool.uuid`, `tool.hash`).
+- **Team knowledge.** Run one on the office network. "how-do-i-connect-to-the-vpn"
+  becomes a name every employee can look up. IT writes it once, everyone asks
+  by typing, and repeated questions are served from cache for free.
+- **AI agents.** Sandboxed agents that may only resolve DNS get a sanctioned
+  question and tool channel, rate limited and log-free.
+
+## Three ways to run it
+
+| Mode | Who can ask | Use it for | Cost |
+|---|---|---|---|
+| Your machine (loopback) | only you | personal terminal Q&A, trying it out | free |
+| Your LAN | everyone on the network | team knowledge, device fleet | free + LLM tokens |
+| The internet | anyone, or token holders | public utility, paid service | ~$5 VPS + LLM tokens |
+
+The mode is decided by where the server runs, not by the code. One deployment
+can serve an open zone and a token-protected zone at the same time
+(`DNSI_ZONES=public.example.com,internal.example.com:secret`).
+
+## Quick start
 
 ```bash
 pnpm install
-pnpm start            # echo backend, udp+tcp on 5353
+pnpm start                  # window 1: the server (demo mode, no API key needed)
 
-# another terminal
-pnpm ask -- "what is dnsi"
-pnpm ask -- "explain quantum computing" --tcp
+pnpm ask -- "what is dnsi"  # window 2: ask anything
 ```
 
-## LLM backend
-
-Point it at any OpenAI-compatible endpoint:
-
-```bash
-DNSI_LLM_BASE_URL=https://api.openai.com/v1 \
-DNSI_LLM_API_KEY=sk-... \
-DNSI_LLM_MODEL=gpt-4o-mini \
-pnpm start
-```
-
-With no configuration DNSI runs the deterministic echo backend (used in tests
-and demos). The model is asked for its answer plus a `RELATED:` line; the
-related questions become the CNAME graph.
-
-## Client
-
-Anything that resolves DNS. `dig`:
+Works with standard tools as well:
 
 ```bash
 dig +short TXT "what is dnsi" @127.0.0.1 -p 5353
-dig +short TXT tool.time.ask.dnsi.test @127.0.0.1 -p 5353
 ```
 
-Node/TS: `import { queryUdp, queryTcp } from "./src/query.js"`.
-Python stdlib (`gethostbyname` only devices) is a doc topic; the A-record
-compact-answer mode is tracked as a follow-up.
+For real AI answers, point it at any OpenAI-compatible provider:
 
-## Env
+```bash
+DNSI_LLM_BASE_URL=https://api.openai.com/v1 DNSI_LLM_API_KEY=sk-... pnpm start
+```
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `DNSI_ZONE` | `dnsi.test` | zone this server answers for |
-| `DNSI_TOKEN` | - | require this token for `DNSI_ZONE` |
-| `DNSI_ZONES` | - | multi-zone override: `zone[:token],zone2[:token2]` |
-| `DNSI_PORT` | `5353` | UDP and TCP port |
-| `DNSI_TCP_ONLY` | off | `1` binds TCP only |
-| `DNSI_BACKEND` | auto | `echo` forces the echo backend |
-| `DNSI_LLM_BASE_URL` / `DNSI_LLM_API_KEY` / `DNSI_LLM_MODEL` | - | OpenAI-compatible backend |
+## Running costs
+
+- Local: free.
+- Public hobby scale: a $4-6 VPS and roughly $1-5/month of AI tokens for
+  1000 questions a day. Answers are cached (canonical answers for an hour,
+  dynamic ones for a minute), so repeat questions cost nothing.
+- Tools never touch the AI and are answered locally.
+
+## Is this a hack?
+
+It is a deliberate repurposing of the oldest question-answering machine on
+the internet, built with the safeguards security teams expect: rate limits,
+load shedding, zero per-user logging, and an option to answer over TCP only.
+Questions and answers are plain text, so do not send passwords through it.
+
+## Install
+
+```bash
+npm install -g dnsi
+dnsi-server                 # run the nameserver
+dnsi-ask "your question"    # ask from anywhere
+```
+
+Requires Node 22+. 35 kB download, zero runtime dependencies.
+
+## Documentation
+
+- [PLAIN.md](docs/PLAIN.md) - what this is in plain words, and when to use it
+- [PROTOCOL.md](docs/PROTOCOL.md) - the exact wire format, with a captured transcript
+- [AGENTS.md](docs/AGENTS.md) - deep dive on agents, devices and hostile networks
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - components, caching, security posture
+- [OPERATIONS.md](docs/OPERATIONS.md) - deployment, configuration, threat model
 
 ## Development
 
 ```bash
-pnpm verify      # typecheck + tests
+pnpm verify      # typecheck + 26 tests
 pnpm build       # emit dist/
 ```
-
-## Documentation
-
-- [PLAIN.md](docs/PLAIN.md) - start here: plain words, real scenarios, no jargon
-- [PROTOCOL.md](docs/PROTOCOL.md) - the wire contract: QNAME encoding,
-  TXT chunking, CNAME graph, tool namespace, TTLs, errors, reference transcript
-- [AGENTS.md](docs/AGENTS.md) - the killer use case: sandboxed agents,
-  gethostbyname-only devices, hostile networks, walking the knowledge graph
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - components, request flow,
-  backends, caching semantics, security posture, testing
-- [OPERATIONS.md](docs/OPERATIONS.md) - running, env vars, NS-delegation
-  deployment, threat model, known limitations
-
-## Prior art
-
-- github.com/duyet/llm-over-dns - prompt in QNAME, TXT back (no graph, no tools)
-- github.com/mneves75/dnschat - chat client over DNS
-- github.com/knadh/dns.toys - fixed utilities over DNS
-
-DNSI's lane: agent tool-calling and the related-question knowledge graph.
