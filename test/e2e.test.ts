@@ -8,6 +8,7 @@ import {
   decodeEncodedText,
 } from "../src/name.js";
 import { startServer } from "../src/server.js";
+import { CannedBackend } from "../src/backend.js";
 import { queryTcp, queryUdp, aRecordsToText, RR_A } from "../src/query.js";
 
 const ZONE = "dnsi.test";
@@ -272,4 +273,37 @@ test("chunkQuestion never splits %XX tokens and round-trips", () => {
   assert.ok(chunks);
   for (const c of chunks) assert.ok(c.length <= 45);
   assert.equal(decodeEncodedText(chunks.join("")), q);
+});
+
+test("canned demo server: prepared questions answered, others get the default, graph resolves", async () => {
+  const canned = new CannedBackend(
+    {
+      "what is dnsi": {
+        answer: "DNSi is a question box over DNS.",
+        related: ["what tools are available"],
+      },
+      "what tools are available": {
+        answer: "time, uuid, echo, hash.",
+        related: [],
+      },
+    },
+    "This demo answers prepared questions only.",
+  );
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: canned });
+  try {
+    // exact match, different casing
+    const hit = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
+    assert.equal(hit.rcode, 0);
+    assert.equal(hit.txt, "DNSi is a question box over DNS.");
+    // the related CNAME is one of the prepared questions and resolves
+    assert.ok(hit.cnames.includes("what-tools-are-available.ask." + ZONE));
+    const rel = await queryUdp(server.udpPort, hit.cnames[0] ?? "");
+    assert.equal(rel.txt, "time, uuid, echo, hash.");
+
+    // unknown question falls back to the default
+    const miss = await queryUdp(server.udpPort, qnameFor("what is the meaning of life"));
+    assert.equal(miss.txt, "This demo answers prepared questions only.");
+  } finally {
+    await server.stop();
+  }
 });

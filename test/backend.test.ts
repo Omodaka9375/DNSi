@@ -1,6 +1,15 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { OpenAICompatBackend } from "../src/backend.js";
+import {
+  OpenAICompatBackend,
+  CannedBackend,
+  loadCannedAnswers,
+  normalizeQuestion,
+  selectBackend,
+} from "../src/backend.js";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 type FetchCall = { url: string; init: RequestInit };
 
@@ -66,4 +75,80 @@ test("openai backend: RELATED with more than 3 entries is capped", async () => {
   const backend = new OpenAICompatBackend("https://api.example/v1", "sk-test", "m1", impl);
   const answer = await backend.ask("hello");
   assert.equal(answer.related.length, 3);
+});
+
+test("canned backend: matches ignoring case, punctuation and extra spaces", async () => {
+  const canned = new CannedBackend(
+    { "What is DNSi?": { answer: "the answer" } },
+    "default text",
+  );
+  for (const q of ["what is dnsi", "What is DNSi?!", "what  is   dnsi?", " WHAT IS DNSI. "]) {
+    const a = await canned.ask(q);
+    assert.equal(a.text, "the answer");
+    assert.equal(a.canonical, true);
+  }
+  assert.equal(normalizeQuestion("  Hello,   World?!  "), "hello, world");
+});
+
+test("canned backend: unknown question returns the default", async () => {
+  const canned = new CannedBackend(
+    { "known": { answer: "yes", related: ["known"] } },
+    "nope, prepared questions only",
+  );
+  const a = await canned.ask("completely unknown thing");
+  assert.equal(a.text, "nope, prepared questions only");
+  assert.deepEqual(a.related, []);
+});
+
+test("canned backend: related questions are capped at 3", async () => {
+  const canned = new CannedBackend(
+    { "q": { answer: "a", related: ["1", "2", "3", "4", "5"] } },
+    "d",
+  );
+  assert.equal((await canned.ask("q")).related.length, 3);
+});
+
+test("canned backend: entries without answers are skipped", async () => {
+  const canned = new CannedBackend(
+    { "bad": { related: ["x"] } as never, "good": { answer: "ok" } },
+    "d",
+  );
+  assert.equal(canned.size, 1);
+  assert.equal((await canned.ask("good")).text, "ok");
+});
+
+test("loadCannedAnswers: reads the JSON file, bad file throws", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dnsi-test-"));
+  try {
+    const good = join(dir, "good.json");
+    writeFileSync(good, JSON.stringify({ default: "d", questions: { "what is dnsi": { answer: "a" } } }));
+    const backend = loadCannedAnswers(good);
+    assert.equal((await backend.ask("WHAT IS DNSI?")).text, "a");
+
+    const bad = join(dir, "bad.json");
+    writeFileSync(bad, "{ not json");
+    assert.throws(() => loadCannedAnswers(bad), /not valid JSON/);
+
+    const shapeless = join(dir, "shapeless.json");
+    writeFileSync(shapeless, "{}");
+    assert.throws(() => loadCannedAnswers(shapeless), /"questions" object/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("selectBackend: DNSI_BACKEND=echo wins over DNSI_ANSWERS", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dnsi-test-"));
+  try {
+    const file = join(dir, "answers.json");
+    writeFileSync(file, JSON.stringify({ default: "d", questions: {} }));
+    const b = selectBackend({ DNSI_BACKEND: "echo", DNSI_ANSWERS: file });
+    assert.equal(b.name, "echo");
+    const c = selectBackend({ DNSI_ANSWERS: file });
+    assert.equal(c.name, "canned");
+    const e = selectBackend({});
+    assert.equal(e.name, "echo");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

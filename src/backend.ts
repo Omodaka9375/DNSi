@@ -1,6 +1,10 @@
 /** Answer backends. The echo backend runs with zero configuration; the
  * OpenAI-compatible backend is enabled via env (works with OpenAI, Groq,
- * OpenRouter, Ollama, anything speaking /chat/completions). */
+ * OpenRouter, Ollama, anything speaking /chat/completions). The canned
+ * backend serves pre-prepared answers from a JSON file: a demo server
+ * about a fixed topic with no AI and no API key at all. */
+
+import { readFileSync } from "node:fs";
 
 export type BackendAnswer = {
   text: string;
@@ -108,10 +112,75 @@ export class OpenAICompatBackend implements Backend {
 
 export function selectBackend(env: NodeJS.ProcessEnv = process.env): Backend {
   if (env.DNSI_BACKEND === "echo") return new EchoBackend();
+  const answers = env.DNSI_ANSWERS;
+  if (typeof answers === "string" && answers.length > 0) {
+    return loadCannedAnswers(answers);
+  }
   const base = env.DNSI_LLM_BASE_URL;
   const key = env.DNSI_LLM_API_KEY;
   if (typeof base === "string" && base.length > 0 && typeof key === "string" && key.length > 0) {
     return new OpenAICompatBackend(base, key, env.DNSI_LLM_MODEL ?? "gpt-4o-mini");
   }
   return new EchoBackend();
+}
+
+/** Case, punctuation and whitespace insensitive matching for canned Qs. */
+export function normalizeQuestion(q: string): string {
+  return q.trim().replace(/[?.!]+$/, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+export type CannedEntry = { answer: string; related?: string[] };
+
+export class CannedBackend implements Backend {
+  readonly name = "canned";
+  private readonly map: Map<string, CannedEntry>;
+  private readonly fallback: string;
+
+  constructor(entries: Record<string, CannedEntry>, fallback: string) {
+    this.map = new Map();
+    for (const [k, v] of Object.entries(entries)) {
+      if (isRecord(v) && typeof v.answer === "string" && v.answer.length > 0) {
+        this.map.set(normalizeQuestion(k), v);
+      }
+    }
+    this.fallback = fallback;
+  }
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  async ask(question: string): Promise<BackendAnswer> {
+    const hit = this.map.get(normalizeQuestion(question));
+    if (hit) {
+      return {
+        text: hit.answer,
+        related: (hit.related ?? []).slice(0, MAX_RELATED),
+        canonical: true,
+      };
+    }
+    return { text: this.fallback, related: [], canonical: true };
+  }
+}
+
+function parseCannedFile(raw: string): { questions: Record<string, CannedEntry>; fallback: string } {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`canned answers file is not valid JSON: ${(e as Error).message}`);
+  }
+  if (!isRecord(data)) throw new Error("canned answers file must be an object");
+  const qs = data.questions;
+  if (!isRecord(qs)) throw new Error('canned answers file needs a "questions" object');
+  const fallback =
+    typeof data.default === "string" && data.default.length > 0
+      ? data.default
+      : "This DNSi demo answers prepared questions only (no AI). Try: what is dnsi";
+  return { questions: qs as Record<string, CannedEntry>, fallback };
+}
+
+export function loadCannedAnswers(path: string): CannedBackend {
+  const { questions, fallback } = parseCannedFile(readFileSync(path, "utf8"));
+  return new CannedBackend(questions, fallback);
 }

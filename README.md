@@ -61,7 +61,8 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-npx dnsi-ask "what is dnsi"    # asks the public instance at dnsi.dev (once live)
+npx dnsi-ask "what is dnsi"   # asks the public demo server (dnsi.dev, once live):
+                              # prepared answers about DNSi, no AI, no key needed
 ```
 
 Run your own:
@@ -73,10 +74,10 @@ pnpm start                       # window 1: the server (demo mode, no API key)
 pnpm ask -- "what is dnsi" --local   # window 2: ask your own server
 ```
 
-Works with standard tools as well:
+Serve a fixed set of prepared answers (a topic demo with no AI):
 
 ```bash
-dig +short TXT "what is dnsi" @dnsi.dev
+DNSI_ANSWERS=examples/answers.json pnpm start
 ```
 
 For real AI answers, point it at any OpenAI-compatible provider:

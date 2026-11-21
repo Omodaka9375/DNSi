@@ -33,10 +33,15 @@ const zone = (
 const port = Number(process.env.DNSI_PORT ?? (useLocal ? 5353 : 53));
 const host = process.env.DNSI_HOST ?? (useLocal ? "127.0.0.1" : publicZone);
 
+const qtype = useA ? RR_A : undefined;
+
 async function send(qname: string): Promise<DnsiResponse> {
-  return useTcp
-    ? queryTcp(port, qname, host, 10000, useA ? RR_A : undefined)
-    : queryUdp(port, qname, host, 5000, useA ? RR_A : undefined);
+  if (useTcp) return queryTcp(port, qname, host, 10000, qtype);
+  // A-mode answers often exceed classic 512-byte UDP: announce EDNS, and
+  // retry over TCP if the server still says TC (what real resolvers do).
+  const res = await queryUdp(port, qname, host, 5000, qtype, useA ? 1232 : undefined);
+  if (!res.tc) return res;
+  return queryTcp(port, qname, host, 10000, qtype);
 }
 
 function print(res: DnsiResponse): void {

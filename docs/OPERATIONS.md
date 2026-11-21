@@ -37,12 +37,30 @@ Port 53 needs privileges; develop on 5353.
 | `DNSI_PORT` | `5353` | UDP and TCP port |
 | `DNSI_TCP_ONLY` | off | `1` binds TCP only (recommended in production) |
 | `DNSI_BACKEND` | auto | `echo` forces demo mode |
+| `DNSI_ANSWERS` | - | path to a prepared-answers JSON file: a topic demo with no AI (see `examples/answers.json`). Takes precedence over the LLM backend |
 | `DNSI_LLM_BASE_URL` | - | OpenAI-compatible base URL (enables the LLM backend) |
 | `DNSI_LLM_API_KEY` | - | API key for that endpoint |
 | `DNSI_LLM_MODEL` | `gpt-4o-mini` | model id |
 
 Secrets live in the environment, never in the repo. Demo mode
 needs nothing and is safe for demos.
+
+## Demo server (prepared answers, no AI)
+
+The public demo at dnsi.dev runs a canned backend: a fixed set of prepared
+questions and answers about DNSi, served with no AI, no API key, and an
+instant reply. Unknown questions get a friendly default that lists what to
+ask. Run it locally:
+
+```bash
+DNSI_ANSWERS=examples/answers.json pnpm start
+pnpm ask -- "what is dnsi" --local
+```
+
+The JSON shape: `{"default": "...", "questions": {"<question>": {"answer":
+"...", "related": ["follow-up question", ...]}}}`. Matching ignores case,
+trailing punctuation and extra spaces. Related entries become resolvable
+CNAMEs. Prepared answers are canonical and cache for an hour.
 
 ## Production shape
 

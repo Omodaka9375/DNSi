@@ -1,0 +1,45 @@
+{
+  "default": "This is the DNSi demo server. It answers prepared questions about DNSi only - there is no AI behind it. Try asking: what is dnsi, how do i use dnsi, does dnsi need an api key, or what tools are available.",
+  "questions": {
+    "what is dnsi": {
+      "answer": "DNSi teaches the internet's directory service (DNS, around since 1983) a new trick: your question travels as a domain name, and the answer comes back as the reply. No app, no login, no HTTP. If a device can look up a name, it can ask.",
+      "related": ["how do i use dnsi", "what can dnsi be used for", "is there an ai behind this server"]
+    },
+    "how do i use dnsi": {
+      "answer": "From a terminal: npx dnsi-ask \"your question\". That asks a DNSi server over plain DNS. You can also run your own server with npm install -g dnsi, then dnsi-server. Any DNS tool (dig, nslookup) works too.",
+      "related": ["does dnsi need an api key", "what tools are available"]
+    },
+    "does dnsi need an api key": {
+      "answer": "You (the asker) never need a key: DNS is open, and this demo server has no AI to pay for. If someone runs a DNSi server backed by a real language model, the operator pays for that and can require a token in the question to keep strangers from spending their budget.",
+      "related": ["is this an ai", "what is a dnsi token"]
+    },
+    "what is a dnsi token": {
+      "answer": "A per-zone password embedded in the question name (like ...t.mytoken.ask.dnsi.dev). A zone that requires a token refuses questions without the right one. It keeps abuse and cost down; it does not encrypt anything.",
+      "related": ["does dnsi need an api key"]
+    },
+    "is this an ai": {
+      "answer": "This particular server is not. It answers a fixed set of prepared questions about DNSi, which is why replies are instant and cost nothing. A DNSi server can also be pointed at any AI provider; this one simply is not.",
+      "related": ["what is dnsi", "who made dnsi"]
+    },
+    "is there an ai behind this server": {
+      "answer": "No. This is the prepared-answers demo: a fixed set of questions about DNSi, answered without any AI. Every answer here is served from cache rules designed for it.",
+      "related": ["is this an ai", "what is dnsi"]
+    },
+    "what tools are available": {
+      "answer": "Four built-in tools answer without any AI: tool.time (current UTC time), tool.uuid (random UUID), tool.echo (repeats your text), and tool.hash (SHA-256 of your text). Example name: tool.time.ask.dnsi.dev.",
+      "related": ["how do i use dnsi", "what is dnsi"]
+    },
+    "what can dnsi be used for": {
+      "answer": "Terminal Q&A without a browser; asking questions on networks that block everything except DNS; giving gethostbyname-only devices (printers, PLCs, old firmware) AI answers, a clock, a UUID and a hash; team knowledge boxes; and a sanctioned question channel for sandboxed AI agents.",
+      "related": ["what is dnsi", "who made dnsi"]
+    },
+    "who can ask the dnsi demo server": {
+      "answer": "Anyone who can resolve DNS: any computer, phone, router or embedded device. That is the point. The server rate-limits per source address and logs nothing about who asked.",
+      "related": ["is this an ai", "what can dnsi be used for"]
+    },
+    "who made dnsi": {
+      "answer": "DNSi is an open-source experiment by @Omodaka9375. Code: github.com/Omodaka9375/DNSi - site: dnsi.dev. The npm package is dnsi (zero runtime dependencies, two commands: dnsi-server and dnsi-ask).",
+      "related": ["what is dnsi", "how do i use dnsi"]
+    }
+  }
+}
