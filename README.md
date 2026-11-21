@@ -84,6 +84,17 @@ pnpm verify      # typecheck + tests
 pnpm build       # emit dist/
 ```
 
+## Documentation
+
+- [PROTOCOL.md](docs/PROTOCOL.md) - the wire contract: QNAME encoding,
+  TXT chunking, CNAME graph, tool namespace, TTLs, errors, reference transcript
+- [AGENTS.md](docs/AGENTS.md) - the killer use case: sandboxed agents,
+  gethostbyname-only devices, hostile networks, walking the knowledge graph
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - components, request flow,
+  backends, caching semantics, security posture, testing
+- [OPERATIONS.md](docs/OPERATIONS.md) - running, env vars, NS-delegation
+  deployment, threat model, known limitations
+
 ## Prior art
 
 - github.com/duyet/llm-over-dns - prompt in QNAME, TXT back (no graph, no tools)
