@@ -4,6 +4,8 @@ import { AnswerCache } from "./cache.js";
 import {
   buildQuestionQname,
   decodeEncodedText,
+  encodedByteLength,
+  MAX_SESSION_QUESTION_BYTES,
   parseDnsiQname,
   type ZoneConfig,
 } from "./name.js";
@@ -71,7 +73,14 @@ function cacheKey(qtype: number, qname: string): string {
   return `${qtype}:${qname}`;
 }
 
-type SessionEntry = { parts: Map<number, string>; total: number; created: number };
+type SessionEntry = {
+  /** Part number -> that part's text, still in QNAME encoding. */
+  parts: Map<number, string>;
+  /** Part number -> decoded byte count, for the exact session budget. */
+  bytes: Map<number, number>;
+  total: number;
+  created: number;
+};
 
 export class Dnsi {
   private cache = new AnswerCache(10_000);
@@ -105,11 +114,25 @@ export class Dnsi {
     const ednsPayload = q.ednsSize !== null ? EDNS_PAYLOAD : null;
 
     if (transport === "udp") {
-      // Classic UDP caps at 512; an EDNS0 sender raises the cap to the
-      // smaller of its advertised size and our 4096 ceiling.
+      // No OPT: classic 512. With OPT: the smaller of what the requestor
+      // advertised (RFC 6891) and OUR advertised size (1232, RFC 8482's
+      // recommended ceiling). Honouring a requestor's 4096 instead would
+      // let a spoofed source address collect a 4096-byte reply for a
+      // ~40-byte query, which is textbook reflected DNS amplification.
+      // Anything larger is truncated, and the client retries over TCP
+      // where it is not spoofable.
       const limit =
-        q.ednsSize !== null && q.ednsSize >= 512 ? Math.min(q.ednsSize, 4096) : UDP_MAX;
-      const full = encodeResponse(q.id, q.qname, q.qtype, q.qclass, records, rcode, false, ednsPayload);
+        q.ednsSize !== null ? Math.min(q.ednsSize, EDNS_PAYLOAD) : UDP_MAX;
+      const full = encodeResponse(
+        q.id,
+        q.qname,
+        q.qtype,
+        q.qclass,
+        records,
+        rcode,
+        false,
+        ednsPayload,
+      );
       if (full.length <= limit) return full;
       return encodeResponse(q.id, q.qname, q.qtype, q.qclass, [], rcode, true, ednsPayload);
     }
@@ -129,7 +152,7 @@ export class Dnsi {
         return {
           records: [
             txtRecord(
-              `DNSi: send a question, e.g. what-is-dnsi.ask.${this.opts.zones[0]?.zone ?? "dnsi.test"} ` +
+              `DNSi: send a question, e.g. what-is-dnsi.ask.${parsed.zone.zone} ` +
                 `(TXT over UDP/TCP). ${listTools()}`,
               TTL_CANONICAL,
             ),
@@ -139,18 +162,27 @@ export class Dnsi {
       case "tool":
         return this.tool(parsed.tool, parsed.args, q.qname, q.qtype);
       case "session":
-        return await this.sessionChunk(parsed.sid, parsed.n, parsed.total, parsed.chunk, q);
+        return this.sessionChunk(parsed.sid, parsed.n, parsed.total, parsed.chunk, q, parsed.zone);
       case "question":
-        return this.question(parsed.question, q.qname, q.qtype);
+        return this.question(parsed.question, q.qname, q.qtype, parsed.zone);
     }
   }
 
+  /**
+   * Collect one session part. Parts arrive STILL ENCODED and are joined
+   * before they are decoded: a multi-byte UTF-8 character is three %XX
+   * tokens, and chunkQuestion may place that boundary mid-character, so
+   * decoding a part on its own would cut it in half. Decoding twice (once in
+   * the parser, once here) was the original defect: it re-reads literal '-'
+   * and '%' in the question as escapes.
+   */
   private async sessionChunk(
     sid: string,
     n: number,
     total: number,
-    chunk: string,
+    encoded: string,
     q: QueryInfo,
+    zone: ZoneConfig,
   ): Promise<ResolveResult> {
     const now = Date.now();
     for (const [k, v] of this.sessions) {
@@ -159,10 +191,27 @@ export class Dnsi {
 
     let entry = this.sessions.get(sid);
     if (!entry || entry.total !== total) {
-      entry = { parts: new Map(), total, created: now };
+      entry = { parts: new Map(), bytes: new Map(), total, created: now };
+    }
+    const chunkBytes = encodedByteLength(encoded) ?? 0;
+    let sum = 0;
+    for (const [k, v] of entry.bytes) sum += k === n ? chunkBytes : v;
+    // The documented session budget is enforced at admission time, so the
+    // assembled question handed to the backend can never exceed it.
+    if (sum + chunkBytes > MAX_SESSION_QUESTION_BYTES) {
+      return {
+        records: [
+          txtRecord(
+            `question exceeds the ${MAX_SESSION_QUESTION_BYTES}-byte session cap`,
+            TTL_DYNAMIC,
+          ),
+        ],
+        rcode: RCODE.REFUSED,
+      };
     }
     entry.created = now;
-    entry.parts.set(n, chunk);
+    entry.parts.set(n, encoded);
+    entry.bytes.set(n, chunkBytes);
     this.sessions.set(sid, entry);
 
     if (entry.parts.size < total) {
@@ -172,7 +221,7 @@ export class Dnsi {
       };
     }
 
-    // Assemble in part order and answer the assembled question inline.
+    // Assemble in part order, decode once, then answer inline.
     const pieces: string[] = [];
     for (let i = 1; i <= total; i += 1) {
       const p = entry.parts.get(i);
@@ -181,7 +230,8 @@ export class Dnsi {
     }
     this.sessions.delete(sid);
     const question = decodeEncodedText(pieces.join(""));
-    return this.question(question, q.qname, q.qtype, false);
+    if (question.length === 0) return { records: [], rcode: RCODE.NXDOMAIN };
+    return this.question(question, q.qname, q.qtype, zone, false);
   }
 
   private tool(tool: string, args: string, qname: string, qtype: number): ResolveResult {
@@ -203,6 +253,7 @@ export class Dnsi {
     text: string,
     qname: string,
     qtype: number,
+    zone: ZoneConfig,
     cacheable = true,
   ): Promise<ResolveResult> {
     if (this.inFlight >= this.maxInFlight) {
@@ -225,8 +276,11 @@ export class Dnsi {
       records = answerToARecords(answer.text, ttl);
     } else {
       records = [txtRecord(answer.text, ttl)];
+      // Related questions live in the zone that was actually queried, and
+      // carry that zone's token: without the token, following the graph on
+      // a token-protected zone would come back REFUSED.
       for (const rel of answer.related.slice(0, 3)) {
-        const target = buildQuestionQname(rel, this.opts.zones[0]?.zone ?? "dnsi.test");
+        const target = buildQuestionQname(rel, zone.zone, zone.token);
         if (target) records.push({ type: "CNAME", target, ttl: TTL_DYNAMIC });
       }
     }

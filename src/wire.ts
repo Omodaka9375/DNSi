@@ -55,8 +55,13 @@ function u32(v: number): Buffer {
   return b;
 }
 
+/** RFC 1035 max name length: 253 octets including the root label. Applied to
+ * inbound names as well as outbound ones, so a client can never hand us a
+ * name our own encoder would refuse to emit. */
+export const MAX_NAME_LEN = 253;
+
 export function encodeName(name: string): Buffer | null {
-  if (name.length === 0 || name.length > 253) return null;
+  if (name.length === 0 || name.length > MAX_NAME_LEN) return null;
   const parts: Buffer[] = [];
   for (const label of name.split(".")) {
     const byteLen = Buffer.byteLength(label, "latin1");
@@ -73,6 +78,7 @@ export type DecodedName = { name: string; next: number };
 /** Decode a name starting at `off`, following compression pointers. */
 export function decodeNameAt(buf: Buffer, off: number): DecodedName | null {
   const labels: string[] = [];
+  let labelBytes = 0;
   let o = off;
   let next = -1;
   for (let guard = 0; guard < 128; guard += 1) {
@@ -91,6 +97,10 @@ export function decodeNameAt(buf: Buffer, off: number): DecodedName | null {
     }
     if (len > 63) return null;
     labels.push(buf.subarray(o + 1, o + 1 + len).toString("latin1").toLowerCase());
+    labelBytes += len;
+    // Bound the decoded name, not just the wire bytes: compression pointers
+    // let a short packet expand into an oversized name.
+    if (labelBytes + labels.length - 1 > MAX_NAME_LEN) return null;
     o += 1 + len;
   }
   return null;

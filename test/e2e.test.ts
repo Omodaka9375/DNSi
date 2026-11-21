@@ -9,7 +9,9 @@ import {
 } from "../src/name.js";
 import { startServer } from "../src/server.js";
 import { CannedBackend } from "../src/backend.js";
-import { queryTcp, queryUdp, aRecordsToText, RR_A } from "../src/query.js";
+import { queryTcp, queryUdp, aRecordsToText, buildQuery, RR_A } from "../src/query.js";
+import dgram from "node:dgram";
+import { EDNS_PAYLOAD } from "../src/wire.js";
 
 const ZONE = "dnsi.test";
 
@@ -192,16 +194,68 @@ test("UDP answers over 512 bytes are truncated with TC; TCP is complete", async 
   }
 });
 
-test("EDNS: large advertised payload receives the full answer over UDP", async () => {
+test("EDNS: an advertised payload up to 1232 receives the full answer over UDP", async () => {
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new LongBackend() });
+  try {
+    const qn = qnameFor("explain quantum");
+    // a >512 but <1232 answer: classic UDP truncates, EDNS0 at 1232 does not
+    const classic = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 16);
+    assert.equal(classic.tc, true);
+    const edns = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 16, EDNS_PAYLOAD);
+    assert.equal(edns.tc, false);
+    assert.ok(edns.txt.length > 512);
+  } finally {
+    await server.stop();
+  }
+});
+
+/** Send a raw query and report the response's byte count plus its TC bit. */
+function rawUdp(query: Buffer, port: number): Promise<{ bytes: number; tc: boolean }> {
+  return new Promise((resolve, reject) => {
+    const socket = dgram.createSocket("udp4");
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error("timeout"));
+    }, 5000);
+    socket.once("message", (msg) => {
+      clearTimeout(timer);
+      socket.close();
+      resolve({ bytes: msg.length, tc: (msg[2] & 0x02) !== 0 });
+    });
+    socket.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    socket.send(query, port, "127.0.0.1");
+  });
+}
+
+test("EDNS: UDP replies never exceed 1232 bytes (no reflected amplification)", async () => {
   const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new LongBackend() });
   try {
     const qn = qnameFor("explain quantum computing in detail please");
-    // classic UDP: TC; EDNS0 with 4096: complete
-    const classic = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 16);
-    assert.equal(classic.tc, true);
-    const edns = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 16, 4096);
-    assert.equal(edns.tc, false);
-    assert.ok(edns.txt.length > 512);
+
+    // A requestor claiming 4096 used to receive the whole ~1.7 KB answer.
+    // It must now be truncated: that reply is what a spoofed source
+    // address would collect, and it is the reason this cap exists.
+    const asking4096 = buildQuery(qn, 16, 7, 4096);
+    assert.ok(asking4096);
+    const big = await rawUdp(asking4096, server.udpPort);
+    assert.equal(big.tc, true, "a 4096 ask must not receive the full answer");
+    assert.ok(big.bytes <= EDNS_PAYLOAD, `reply was ${big.bytes} bytes`);
+
+    // Never larger than the requestor's own advertised size either
+    // (RFC 6891): a 200-byte claim gets at most 200 bytes back.
+    const asking200 = buildQuery(qn, 16, 7, 200);
+    assert.ok(asking200);
+    const small = await rawUdp(asking200, server.udpPort);
+    assert.equal(small.tc, true);
+    assert.ok(small.bytes <= 200, `reply was ${small.bytes} bytes for a 200 ask`);
+
+    // TCP is unaffected: the complete answer is available there.
+    const tcpRes = await queryTcp(server.tcpPort, qn, "127.0.0.1", 10000);
+    assert.equal(tcpRes.tc, false);
+    assert.ok(tcpRes.txt.length > EDNS_PAYLOAD, "TCP still serves the long answer");
   } finally {
     await server.stop();
   }
@@ -273,6 +327,158 @@ test("chunkQuestion never splits %XX tokens and round-trips", () => {
   assert.ok(chunks);
   for (const c of chunks) assert.ok(c.length <= 45);
   assert.equal(decodeEncodedText(chunks.join("")), q);
+});
+
+test("uuid tool returns a fresh value per call (not cached by the fixed name)", async () => {
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+  try {
+    const a = await queryUdp(server.udpPort, `tool.uuid.ask.${ZONE}`);
+    const b = await queryUdp(server.udpPort, `tool.uuid.ask.${ZONE}`);
+    assert.equal(a.rcode, 0);
+    assert.match(a.txt, /^[0-9a-f-]{36}$/);
+    assert.notEqual(a.txt, b.txt, "uuid must not be cached under the shared qname");
+    // deterministic tools still cache: the same hash comes back identical
+    const h1 = await queryUdp(server.udpPort, `tool.hash.stable.ask.${ZONE}`);
+    const h2 = await queryUdp(server.udpPort, `tool.hash.stable.ask.${ZONE}`);
+    assert.equal(h1.txt, h2.txt);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("session mode round-trips a unicode question without double-decoding", async () => {
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+  try {
+    const question = `\u4e2d\u6587 caf\u00e9 na\u00efve ${"r\u00e9sum\u00e9 ".repeat(30)}konec`;
+    assert.ok(Buffer.byteLength(question) > 200, "needs session mode");
+    const chunks = chunkQuestion(question);
+    assert.ok(chunks && chunks.length >= 2);
+    const sid = "0a0b0c0d";
+    for (let i = 0; i < chunks.length - 1; i += 1) {
+      const qn = buildSessionQname(sid, i + 1, chunks.length, chunks[i] ?? "", ZONE);
+      assert.ok(qn);
+      const res = await queryUdp(server.udpPort, qn);
+      assert.equal(res.rcode, 0);
+    }
+    const finalQn = buildSessionQname(
+      sid,
+      chunks.length,
+      chunks.length,
+      chunks[chunks.length - 1] ?? "",
+      ZONE,
+    );
+    assert.ok(finalQn);
+    const answer = await queryUdp(server.udpPort, finalQn);
+    // the echo backend prefixes the question; the question itself must be intact
+    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
+    assert.ok(!answer.txt.includes("\uFFFD"), "no replacement characters");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("server enforces the session question ceiling on hand-built parts", async () => {
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+  try {
+    // Part labels are legal 63-byte DNS names, wider than the documented
+    // 45-byte part: the parser rejects them outright.
+    const wide = buildSessionQname("00112233", 1, 2, "x".repeat(63), ZONE);
+    assert.ok(wide);
+    const res = await queryUdp(server.udpPort, wide);
+    assert.equal(res.rcode, 3); // NXDOMAIN: not a name we serve
+
+    // Parts sized per spec but too many bytes in total: refused at admission,
+    // and the assembled question never reaches the backend.
+    // 45 bytes per part is spec-legal, but 23 parts is 1035 bytes, past the
+    // 1000-byte session budget: the server refuses the part that crosses it.
+    let refused = 0;
+    const sid = "4deeffee";
+    const total = 32;
+    for (let i = 1; i <= total; i += 1) {
+      const part = "y".repeat(45);
+      const qn = buildSessionQname(sid, i, total, part, ZONE);
+      assert.ok(qn);
+      const r = await queryUdp(server.udpPort, qn);
+      if (r.rcode === 5) {
+        refused = i;
+        break;
+      }
+      assert.equal(r.rcode, 0);
+    }
+    assert.ok(refused >= 22, `expected an admission refusal by part 23, got part ${refused}`);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("related CNAMEs stay in the queried zone and carry its token", async () => {
+  const TOKEN = "s3cret";
+  const server = await startServer({
+    zones: [{ zone: "open.dnsi.test" }, { zone: ZONE, token: TOKEN }],
+    udpPort: 0,
+    tcpPort: 0,
+    backend: new EchoBackend(), // echoes two related questions
+  });
+  try {
+    const qn = buildQuestionQname("hi", ZONE, TOKEN) ?? "";
+    assert.ok(qn);
+    const res = await queryUdp(server.udpPort, qn);
+    assert.equal(res.rcode, 0);
+    assert.ok(res.cnames.length >= 1);
+    for (const c of res.cnames) {
+      // target names the tokenized zone, not zones[0], and embeds the token
+      assert.ok(c.endsWith(`.ask.${ZONE}`), `cname left the queried zone: ${c}`);
+      assert.ok(c.includes(`.t.${TOKEN}.ask.`), `cname lost the zone token: ${c}`);
+      // and it actually resolves
+      const rel = await queryUdp(server.udpPort, c);
+      assert.equal(rel.rcode, 0);
+    }
+    // an open zone answers without a token
+    const open = await queryUdp(server.udpPort, buildQuestionQname("hi", "open.dnsi.test") ?? "");
+    assert.equal(open.rcode, 0);
+    assert.ok(open.cnames.every((c) => c.endsWith(".ask.open.dnsi.test")));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("server rejects a hand-built oversized short question (NXDOMAIN, no backend call)", async () => {
+  const backend = new CountingBackend(new EchoBackend());
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend });
+  try {
+    const before = backend.calls;
+    const oversized = ["a".repeat(50), "a".repeat(50), "a".repeat(50), "a".repeat(50), "a".repeat(10)];
+    const res = await queryUdp(server.udpPort, `${oversized.join(".")}.ask.${ZONE}`);
+    assert.equal(res.rcode, 3);
+    assert.equal(backend.calls, before, "backend must not see an over-length question");
+  } finally {
+    await server.stop();
+  }
+});
+
+test("rate limit is active with default production settings", async () => {
+  // index.ts enables the bucket unless DNSI_RATE_LIMIT=off; a library caller
+  // must be able to turn it on and see it bite on a fresh ip per query name.
+  const server = await startServer({
+    zones: [{ zone: ZONE }],
+    udpPort: 0,
+    tcpPort: 0,
+    backend: new EchoBackend(),
+    rateLimit: { burst: 2, refillPerSec: 0 },
+  });
+  try {
+    const codes: number[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const r = await queryUdp(server.udpPort, `tool.hash.ratelimit${i}.ask.${ZONE}`);
+      codes.push(r.rcode);
+    }
+    assert.equal(codes[0], 0);
+    assert.equal(codes[1], 0);
+    assert.equal(codes[2], 2); // SERVFAIL once the bucket is empty
+    assert.equal(codes[3], 2);
+  } finally {
+    await server.stop();
+  }
 });
 
 test("canned demo server: prepared questions answered, others get the default, graph resolves", async () => {

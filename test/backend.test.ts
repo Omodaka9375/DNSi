@@ -7,6 +7,7 @@ import {
   normalizeQuestion,
   selectBackend,
 } from "../src/backend.js";
+import { encodedByteLength, MAX_SESSION_CHUNK, MAX_SESSION_QUESTION_BYTES } from "../src/name.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -151,4 +152,16 @@ test("selectBackend: DNSI_BACKEND=echo wins over DNSI_ANSWERS", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("session budget constants match the documented caps", () => {
+  assert.equal(MAX_SESSION_CHUNK, 45);
+  assert.equal(MAX_SESSION_QUESTION_BYTES, 1000);
+  // a %XX token counts as exactly one decoded byte, three encoded
+  assert.equal(encodedByteLength("%E4%B8%AD"), 3);
+  assert.equal(encodedByteLength("a-b"), 3, "'-' is one space byte");
+  assert.equal(encodedByteLength("%2"), null, "malformed escape rejected");
+  // a stray uppercase literal decodes to one byte (decodeEncodedText passes
+  // any non-escape char through), so it counts rather than being rejected
+  assert.equal(encodedByteLength("Z"), 1);
 });

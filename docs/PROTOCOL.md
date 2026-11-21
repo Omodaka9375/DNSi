@@ -56,7 +56,9 @@ Rules:
 - The encoded stream is packed greedily into labels of at most 50 bytes.
   `%XX` tokens are never split across labels.
 - Questions longer than 200 UTF-8 bytes are rejected client-side
-  (`buildQuestionQname` returns `null`); there is no silent truncation.
+  (`buildQuestionQname` returns `null`) and by the server (the parser
+  answers NXDOMAIN): there is no silent truncation, and no client can
+  smuggle a longer question past the limit.
 - The resulting name must fit in 253 bytes including the `ask.<zone>`
   suffix, or the question is rejected.
 
@@ -110,9 +112,15 @@ retry over TCP. TCP responses are never truncated.
 ### 3.5 EDNS0
 
 Clients that send an OPT record announce their UDP payload size in the
-OPT class. DNSi honors it: the UDP response is sent whole when it fits
-in `min(senderSize, 4096)`, otherwise TC=1. DNSi appends its own OPT
-(advertising payload size 1232) to every response for an EDNS query.
+OPT class. DNSi honors it, capped at its own advertised size: the UDP
+response is sent whole when it fits in `min(senderSize, 1232)`,
+otherwise TC=1. The double cap is deliberate. UDP source addresses are
+spoofable, so a server that answers an inquirer's advertised 4096 with
+4096 bytes is a reflected amplification tool (roughly 100x for a short
+query). Both directions are therefore bounded by 1232, the ceiling RFC
+8482 recommends. DNSi appends its own OPT record (advertising payload
+size 1232) to every response for an EDNS query. Clients needing more
+than that use TCP, which is not spoofable.
 
 ### 3.6 TTL policy
 
@@ -135,7 +143,7 @@ tool.<name>.<args-encoded>.ask.<zone>
 |--------|-----------|-------------------------------|-----------|
 | `time` | -         | current time, ISO 8601        | no        |
 | `echo` | text      | the args                      | yes       |
-| `uuid` | -         | random UUID v4                | yes       |
+| `uuid` | -         | random UUID v4, fresh per call | no       |
 | `hash` | text      | SHA-256 of the args, hex      | yes       |
 
 Tools answer TXT by default; an A query (qtype 1) returns the tool
@@ -157,13 +165,16 @@ sess.<sid>.<n>.<total>.<encoded-chunk>[.t.<token>].ask.<zone>
 - `<sid>` is a random 8 hex character id chosen by the client.
 - `<n>`/`<total>` are 1-based part numbers; parts may arrive in any order.
 - `<encoded-chunk>` uses the question encoding, max 45 characters per
-  chunk, and `%XX` tokens are never split across chunks.
+  chunk (enforced server-side), and `%XX` tokens are never split across
+  chunks.
 - Each incomplete part answers `stored <have>/<total>` (TXT, TTL 60).
 - When all parts are present the server assembles the question in part
   order, answers it inline on the final query (TXT + CNAME graph, or A
   records for qtype A), and deletes the session.
-- Sessions expire after 10 minutes; max 32 parts. Session answers are
-  never cached (each session id is unique).
+- Sessions expire after 10 minutes; max 32 parts, and the assembled
+  question is capped at 1000 bytes server-side (a part that would cross
+  the cap answers REFUSED, and the backend is never called). Session
+  answers are never cached (each session id is unique).
 - The reference client switches to session mode automatically for
   questions over 200 bytes: `pnpm ask -- "long question..."`.
 

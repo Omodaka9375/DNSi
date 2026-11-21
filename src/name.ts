@@ -11,10 +11,13 @@
  */
 
 const MAX_LABEL_BYTES = 50;
-const MAX_QUESTION_BYTES = 200;
-/** Long-question sessions: 32 chunks x 45 encoded bytes = ~1400 char budget. */
+/** Enforced by the server too (parseDnsiQname), not just by the builder. */
+export const MAX_QUESTION_BYTES = 200;
+/** Long-question sessions: 32 chunks x 45 encoded bytes = ~1400 char budget.
+ * Enforced by the server too (sessionChunk), as a running total. */
 export const MAX_SESSION_QUESTION_BYTES = 1000;
-const MAX_SESSION_CHUNK = 45;
+/** Encoded bytes per session part. Enforced by the server too. */
+export const MAX_SESSION_CHUNK = 45;
 const MAX_SESSION_PARTS = 32;
 const SID_RE = /^[0-9a-f]{8}$/;
 
@@ -106,6 +109,24 @@ export function buildSessionQname(
   return fitQname(labels);
 }
 
+const CHUNK_TOKEN_RE = /^(?:-|[a-zA-Z0-9]|%[0-9A-Fa-f]{2})*$/;
+
+/**
+ * Exact decoded byte count of an encoded string, computed without decoding
+ * it. Decoding a single session part can be lossy (its last %XX token may be
+ * one third of a UTF-8 character), so this is what the session budget uses.
+ * Null when the string is not well-formed encoded text.
+ */
+export function encodedByteLength(encoded: string): number | null {
+  if (!CHUNK_TOKEN_RE.test(encoded)) return null;
+  let bytes = 0;
+  for (let i = 0; i < encoded.length; i += 1) {
+    bytes += 1;
+    if (encoded[i] === "%") i += 2;
+  }
+  return bytes;
+}
+
 export function decodeEncodedText(encoded: string): string {
   const out: number[] = [];
   let i = 0;
@@ -128,12 +149,22 @@ export function decodeEncodedText(encoded: string): string {
   return Buffer.from(out).toString("utf8");
 }
 
+/** The matched ZoneConfig is carried on every result: on a multi-zone
+ * server, generated CNAME targets and usage text must name the zone that
+ * was actually queried, never zones[0]. */
 export type DnsiQuery =
-  | { kind: "question"; question: string }
-  | { kind: "tool"; tool: string; args: string }
-  | { kind: "session"; sid: string; n: number; total: number; chunk: string }
-  | { kind: "usage" }
-  | { kind: "unauthorized" };
+  | { kind: "question"; question: string; zone: ZoneConfig }
+  | { kind: "tool"; tool: string; args: string; zone: ZoneConfig }
+  | {
+      kind: "session";
+      sid: string;
+      n: number;
+      total: number;
+      chunk: string;
+      zone: ZoneConfig;
+    }
+  | { kind: "usage"; zone: ZoneConfig }
+  | { kind: "unauthorized"; zone: ZoneConfig };
 
 /**
  * Parse a QNAME against our zones. Returns null when the name belongs to
@@ -161,14 +192,24 @@ export function parseDnsiQname(qname: string, zones: ZoneConfig[]): DnsiQuery | 
     if (rest[rest.length - 1] === "ask") rest = rest.slice(0, -1);
 
     // per-zone token: ...t.<token>.ask.<zone>
+    // Names arrive lowercased (decodeNameAt folds case), so the configured
+    // token is compared case-insensitively: an uppercase DNSI_TOKEN would
+    // otherwise REFUSE every query with nothing to show why.
     if (cfg.token !== undefined) {
       const tLabel = rest[rest.length - 2];
       const tokLabel = rest[rest.length - 1];
-      if (tLabel !== "t" || tokLabel !== cfg.token) return { kind: "unauthorized" };
+      // Both sides lowercased: names arrive lowercased off the wire, and a
+      // directly-supplied name may not be.
+      if (
+        tLabel !== "t" ||
+        (tokLabel ?? "").toLowerCase() !== cfg.token.toLowerCase()
+      ) {
+        return { kind: "unauthorized", zone: cfg };
+      }
       rest = rest.slice(0, -2);
     }
 
-    if (rest.length === 0) return { kind: "usage" };
+    if (rest.length === 0) return { kind: "usage", zone: cfg };
 
     const head = rest[0];
     const second = rest[1];
@@ -179,20 +220,34 @@ export function parseDnsiQname(qname: string, zones: ZoneConfig[]): DnsiQuery | 
       if (n < 1 || total < 1 || n > total || total > MAX_SESSION_PARTS) return null;
       const chunkLabels = rest.slice(4);
       if (chunkLabels.some((l) => l.length === 0)) return null;
-      return {
-        kind: "session",
-        sid: second,
-        n,
-        total,
-        chunk: decodeEncodedText(chunkLabels.join("")),
-      };
+      // The part is returned STILL ENCODED on purpose. A %XX token can
+      // straddle a part boundary (a 3-byte UTF-8 character is three %XX
+      // tokens), so parts may only be decoded after they are joined.
+      const encoded = chunkLabels.join("");
+      // At most MAX_SESSION_CHUNK encoded bytes per part, which is what
+      // chunkQuestion emits: enforced here too, so a hand-built client
+      // cannot ship wider parts and inflate the session past its budget.
+      if (encoded.length === 0 || encoded.length > MAX_SESSION_CHUNK) return null;
+      if (encodedByteLength(encoded) === null) return null;
+      return { kind: "session", sid: second, n, total, chunk: encoded, zone: cfg };
     }
     if (head === "tool" && rest.length >= 2) {
       if (second === undefined || second.length === 0) return null;
       const argsLabels = rest.slice(2);
-      return { kind: "tool", tool: second, args: decodeEncodedText(argsLabels.join("")) };
+      return {
+        kind: "tool",
+        tool: second,
+        args: decodeEncodedText(argsLabels.join("")),
+        zone: cfg,
+      };
     }
-    return { kind: "question", question: decodeEncodedText(rest.join("")) };
+    const question = decodeEncodedText(rest.join(""));
+    // An empty question is a malformed name, and a question past the
+    // documented ceiling is not one we serve: both are NXDOMAIN, never a
+    // backend call carrying unbounded text.
+    if (question.length === 0) return null;
+    if (Buffer.byteLength(question, "utf8") > MAX_QUESTION_BYTES) return null;
+    return { kind: "question", question, zone: cfg };
   }
   return null;
 }

@@ -5,7 +5,7 @@ import {
   decodeEncodedText,
   parseDnsiQname,
 } from "../src/name.js";
-import { chunkUtf8 } from "../src/wire.js";
+import { chunkUtf8, decodeNameAt } from "../src/wire.js";
 
 test("question roundtrip preserves ascii case and punctuation", () => {
   const zone = "dnsi.test";
@@ -77,4 +77,87 @@ test("chunkUtf8 respects 255 byte limit and unicode boundaries", () => {
 test("decodeEncodedText rejects malformed escapes", () => {
   assert.equal(decodeEncodedText("%2"), "");
   assert.equal(decodeEncodedText("%ZZ"), "");
+});
+
+test("parser enforces the 200-byte question ceiling, not just the builder", () => {
+  const zone = "dnsi.test";
+  // The builder refuses a 201-byte question, and the parser must refuse it
+  // too: a hand-built client cannot use the parse path to smuggle one in.
+  // These labels are legal DNS names and fit the 253-octet wire limit.
+  const oversized = ["a".repeat(50), "a".repeat(50), "a".repeat(50), "a".repeat(50), "a".repeat(10)];
+  assert.equal(buildQuestionQname("a".repeat(201), zone), null);
+  assert.equal(parseDnsiQname(`${oversized.join(".")}.ask.${zone}`, [{ zone }]), null);
+  // right at the ceiling still parses
+  const at = buildQuestionQname("a".repeat(200), zone);
+  assert.ok(at);
+  assert.equal(parseDnsiQname(at, [{ zone }])?.kind, "question");
+});
+
+test("parser rejects session parts wider than the documented chunk", () => {
+  const zone = "dnsi.test";
+  // 45 encoded bytes is the documented part size: accepted.
+  assert.ok(parseDnsiQname(`sess.deadbeef.1.2.${"a".repeat(45)}.ask.${zone}`, [{ zone }]));
+  // 46 is not, even though it is a legal DNS label.
+  assert.equal(
+    parseDnsiQname(`sess.deadbeef.1.2.${"a".repeat(46)}.ask.${zone}`, [{ zone }]),
+    null,
+  );
+});
+
+test("a question containing literal percent escapes survives the roundtrip", () => {
+  const zone = "dnsi.test";
+  // A literal '%2D' in the question must decode to '%2D', not to '-'.
+  const q = "literal %2D and - dash 50%";
+  const qname = buildQuestionQname(q, zone);
+  assert.ok(qname);
+  const parsed = parseDnsiQname(qname, [{ zone }]);
+  assert.ok(parsed);
+  if (parsed.kind === "question") assert.equal(parsed.question, q);
+});
+
+test("question results name the zone that was matched", () => {
+  const parsed = parseDnsiQname("hi.ask.priv.dnsi.test", [
+    { zone: "open.dnsi.test" },
+    { zone: "priv.dnsi.test", token: "t0" },
+  ]);
+  assert.equal(parsed?.kind, "unauthorized"); // no token on a tokenized zone
+  const withToken = parseDnsiQname("hi.t.t0.ask.priv.dnsi.test", [
+    { zone: "open.dnsi.test" },
+    { zone: "priv.dnsi.test", token: "t0" },
+  ]);
+  assert.ok(withToken && withToken.kind === "question");
+  if (withToken.kind === "question") assert.equal(withToken.zone.zone, "priv.dnsi.test");
+});
+
+test("configured tokens match case-insensitively (names arrive lowercased)", () => {
+  const zones = [{ zone: "dnsi.test", token: "s3cret" }];
+  assert.equal(
+    parseDnsiQname("hi.t.S3CRET.ask.dnsi.test", zones)?.kind, // as a client would send it
+    "question",
+  );
+  assert.equal(parseDnsiQname("hi.t.wrong.ask.dnsi.test", zones)?.kind, "unauthorized");
+});
+
+test("decodeNameAt rejects names past the 253-octet ceiling", () => {
+  // Five 63-byte labels = 319 octets: every label is legal on the wire, but
+  // the name is longer than anything our own encoder would emit, so it is
+  // rejected rather than handed to the backend as a 319-byte question.
+  const long: Buffer[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    long.push(Buffer.from([63]), Buffer.from("a".repeat(63), "latin1"));
+  }
+  long.push(Buffer.from([0]));
+  const longPacket = Buffer.concat([Buffer.alloc(12), ...long, Buffer.alloc(4)]);
+  assert.equal(decodeNameAt(longPacket, 12), null);
+
+  // a name inside the ceiling still decodes
+  const ok: Buffer[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    ok.push(Buffer.from([60]), Buffer.from("a".repeat(60), "latin1"));
+  }
+  ok.push(Buffer.from([0]));
+  const okPacket = Buffer.concat([Buffer.alloc(12), ...ok, Buffer.alloc(4)]);
+  const decoded = decodeNameAt(okPacket, 12);
+  assert.ok(decoded);
+  assert.equal(decoded.name.split(".").length, 4);
 });

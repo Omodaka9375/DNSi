@@ -5,7 +5,7 @@ export type ToolOutput = { text: string; canonical: boolean } | null;
 /**
  * The agent tool surface: tool.<name>.<args>.ask.<zone>
  * Deterministic tools are canonical (TTL 3600, aggressively cached);
- * time is dynamic (TTL 60).
+ * anything that must differ per call is dynamic (TTL 60, never cached).
  */
 export function runTool(name: string, args: string): ToolOutput {
   switch (name) {
@@ -14,7 +14,10 @@ export function runTool(name: string, args: string): ToolOutput {
     case "echo":
       return { text: args.length > 0 ? args : "(no args)", canonical: true };
     case "uuid":
-      return { text: randomUUID(), canonical: true };
+      // Not canonical: "a fresh value per call" is the whole point, and a
+      // canonical result is cached under the fixed qname, which would hand
+      // every client one shared UUID for the whole TTL. Same as "time".
+      return { text: randomUUID(), canonical: false };
     case "hash":
       return { text: createHash("sha256").update(args, "utf8").digest("hex"), canonical: true };
     default:

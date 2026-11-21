@@ -41,6 +41,9 @@ Port 53 needs privileges; develop on 5353.
 | `DNSI_LLM_BASE_URL` | - | OpenAI-compatible base URL (enables the LLM backend) |
 | `DNSI_LLM_API_KEY` | - | API key for that endpoint |
 | `DNSI_LLM_MODEL` | `gpt-4o-mini` | model id |
+| `DNSI_RATE_BURST` | `20` | token-bucket burst per client address (on by default) |
+| `DNSI_RATE_REFILL` | `1` | tokens refilled per second per client address |
+| `DNSI_RATE_LIMIT` | on | `off` disables the per-client rate limiter (not recommended) |
 
 Secrets live in the environment, never in the repo. Demo mode
 needs nothing and is safe for demos.
@@ -72,8 +75,10 @@ CNAMEs. Prepared answers are canonical and cache for an hour.
    gethostbyname-only devices; TCP answers cannot be source-spoofed.
 3. Put a real LLM behind it via `DNSI_LLM_*`; keep demo mode only
    for tests.
-4. Size the token bucket for your LLM budget - it is the only cost
-   control. The in-flight cap (default 32) sheds excess with SERVFAIL.
+4. The per-client token bucket is on by default (burst 20, 1/sec) and is
+   the main cost control - size it for your LLM budget with
+   `DNSI_RATE_BURST` / `DNSI_RATE_REFILL`. The in-flight cap (default 32)
+   sheds excess with SERVFAIL.
 
 ## Threat model
 

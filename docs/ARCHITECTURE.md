@@ -83,8 +83,9 @@ control over TXT chunking and CNAME answers.
   normalization in v0.1 - `hello world` and `HELLO WORLD` are different
   names, which is honest since questions are case-sensitive strings.
 - Entry: records + expiry; expired entries are evicted on read.
-- Canonical tool answers (hash, uuid, echo) are cached 3600; `time` is
-  never cached. LLM answers cache for 60.
+- Canonical tool answers (hash, echo) are cached 3600; `time` and `uuid`
+  are never cached, since both must differ per call. LLM answers cache
+  for 60.
 
 ## Security posture
 
