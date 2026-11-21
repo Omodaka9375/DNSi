@@ -129,7 +129,7 @@ export class Dnsi {
         return {
           records: [
             txtRecord(
-              `DNSI: send a question, e.g. what-is-dnsi.ask.${this.opts.zones[0]?.zone ?? "dnsi.test"} ` +
+              `DNSi: send a question, e.g. what-is-dnsi.ask.${this.opts.zones[0]?.zone ?? "dnsi.test"} ` +
                 `(TXT over UDP/TCP). ${listTools()}`,
               TTL_CANONICAL,
             ),

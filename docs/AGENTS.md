@@ -1,6 +1,6 @@
-# DNSI for agents and devices
+# DNSi for agents and devices
 
-Who this is for: developers integrating DNSI into software (agents, scripts,
+Who this is for: developers integrating DNSi into software (agents, scripts,
 device firmware). For the plain-language overview, read
 [PLAIN.md](PLAIN.md) first.
 
@@ -13,7 +13,7 @@ AI code-interpreter sandboxes (OpenAI-style containers, cloud agent
 runtimes, CI) commonly block all egress but leave DNS resolution intact -
 researchers have repeatedly shown DNS is the one channel that survives
 (OpenAI ChatGPT DNS exfiltration fix, Feb 2026; AWS AgentCore DNS
-findings). Today that channel is only known as an attack surface. DNSI
+findings). Today that channel is only known as an attack surface. DNSi
 makes it a sanctioned, rate-limited, cacheable API:
 
 ```python
@@ -66,24 +66,24 @@ product, not a UI nicety:
 - Related answers hit the server cache and the resolver cache; popular
   paths cost zero LLM calls.
 - Because questions are domains, the graph can be delegated: point an NS
-  record at a specialist DNSI (a medical zone, a legal zone) and the
+  record at a specialist DNSi (a medical zone, a legal zone) and the
   client needs no new configuration.
 
 Example walk (in demo mode, where the server repeats your question back):
 
 ```text
-dig TXT "What is DNSI?" @server
-  TXT  "DNSI (echo backend): What is DNSI?"   ; literal server output, demo mode
+dig TXT "What is DNSi?" @server
+  TXT  "DNSi (echo backend): What is DNSi?"   ; literal server output, demo mode
   CNAME what-is-dnsi.ask.dnsi.test
   CNAME list-tools.ask.dnsi.test
 
 dig TXT what-is-dnsi.ask.dnsi.test @server   ; follow the graph
-  TXT  "DNSI (echo backend): what is dnsi"
+  TXT  "DNSi (echo backend): what is dnsi"
 ```
 
 ## 5. Client checklist
 
-1. Encode the question with the DNSI rules (space -> `-`, other bytes ->
+1. Encode the question with the DNSi rules (space -> `-`, other bytes ->
    `%XX`, labels <= 50 bytes, question <= 200 bytes).
 2. Query `<labels>.ask.<zone>` TXT over UDP or TCP.
 3. Concatenate TXT character-strings in order (they are UTF-8-safe).

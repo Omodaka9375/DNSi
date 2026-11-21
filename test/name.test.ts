@@ -9,7 +9,7 @@ import { chunkUtf8 } from "../src/wire.js";
 
 test("question roundtrip preserves ascii case and punctuation", () => {
   const zone = "dnsi.test";
-  const q = "What is DNSI? (really)";
+  const q = "What is DNSi? (really)";
   const qname = buildQuestionQname(q, zone);
   assert.ok(qname);
   const parsed = parseDnsiQname(qname, [{ zone }]);

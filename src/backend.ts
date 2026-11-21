@@ -20,7 +20,7 @@ export class EchoBackend implements Backend {
 
   async ask(question: string): Promise<BackendAnswer> {
     return {
-      text: `DNSI (echo backend): ${question}`,
+      text: `DNSi (echo backend): ${question}`,
       related: ["what is dnsi", "list tools"],
       canonical: false,
     };

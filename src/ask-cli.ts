@@ -12,19 +12,26 @@ if (tokenIdx !== -1 && rawArgs[tokenIdx + 1] !== undefined) {
   token = rawArgs[tokenIdx + 1];
   rawArgs.splice(tokenIdx, 2);
 }
-const args = rawArgs.filter((a) => a !== "--tcp" && a !== "--a");
+const args = rawArgs.filter((a) => a !== "--tcp" && a !== "--a" && a !== "--local");
+const useLocal = rawArgs.includes("--local") || process.env.DNSI_LOCAL === "1";
 const question = args.join(" ");
 if (question.length === 0) {
-  console.error('usage: pnpm ask -- "your question" [--tcp] [--a] [--token <t>]');
+  console.error('usage: dnsi-ask "your question" [--tcp] [--a] [--token <t>] [--local]');
   process.exit(2);
 }
 
-const zones = (process.env.DNSI_ZONES ?? process.env.DNSI_ZONE ?? "dnsi.test")
+// Default target is the public instance (dnsi.dev). Pass --local (or set
+// DNSI_LOCAL=1) to ask a server on your own machine instead.
+const localZone = "dnsi.test";
+const publicZone = "dnsi.dev";
+const zone = (
+  process.env.DNSI_ZONES ?? process.env.DNSI_ZONE ?? (useLocal ? localZone : publicZone)
+)
   .split(",")[0]
-  ?.split(":")[0] ?? "dnsi.test";
-const zone = zones.trim();
-const port = Number(process.env.DNSI_PORT ?? 5353);
-const host = process.env.DNSI_HOST ?? "127.0.0.1";
+  ?.split(":")[0]
+  ?.trim() ?? (useLocal ? localZone : publicZone);
+const port = Number(process.env.DNSI_PORT ?? (useLocal ? 5353 : 53));
+const host = process.env.DNSI_HOST ?? (useLocal ? "127.0.0.1" : publicZone);
 
 async function send(qname: string): Promise<DnsiResponse> {
   return useTcp

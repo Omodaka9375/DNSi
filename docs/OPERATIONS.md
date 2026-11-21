@@ -1,4 +1,4 @@
-# Running DNSI
+# Running DNSi
 
 Who this is for: whoever deploys and operates the server. For a plain-language
 introduction see [PLAIN.md](PLAIN.md); for the exact wire format see
@@ -14,14 +14,14 @@ exists so the server runs with no configuration and no API key.
 pnpm install
 pnpm start            # demo mode (repeats questions), UDP+TCP on 5353
 
-pnpm ask -- "what is dnsi"
-pnpm ask -- "explain quantum computing" --tcp
+pnpm ask -- "what is dnsi" --local
+pnpm ask -- "explain quantum computing" --local --tcp
 ```
 
 dig works as a client too (spaces are passed through into the QNAME):
 
 ```bash
-dig +short TXT "What is DNSI?" @127.0.0.1 -p 5353
+dig +short TXT "What is DNSi?" @127.0.0.1 -p 5353
 dig +short TXT tool.time.ask.dnsi.test @127.0.0.1 -p 5353
 ```
 
@@ -47,7 +47,7 @@ needs nothing and is safe for demos.
 ## Production shape
 
 1. Run behind a zone delegation: `dnsi.example.com NS ns.example.com`,
-   DNSI listening on 53 of a public host. Clients then need no `-p` and
+   DNSi listening on 53 of a public host. Clients then need no `-p` and
    no `@server` - the graph resolves through normal recursion, and
    resolvers cache the TTLs for the whole path.
 2. Set `DNSI_TCP_ONLY=1` unless you need UDP compatibility for
@@ -64,7 +64,7 @@ needs nothing and is safe for demos.
   logging, read-only knowledge, no secrets over plaintext DNS. It is the
   sanctioned version of a channel that exists anyway.
 - **Abuse / cost.** UDP source addresses are spoofable, so per-IP limits
-  are best-effort. For strict accounting, front DNSI with a resolver
+  are best-effort. For strict accounting, front DNSi with a resolver
   (Unbound/Bind) that applies your own policy.
 - **No auth by design.** The default is public knowledge. Private zones
   are handled by per-zone tokens (see PROTOCOL.md 4.6): a wrong or

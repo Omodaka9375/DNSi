@@ -1,12 +1,23 @@
 {
   "name": "dnsi",
   "version": "0.3.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
-  "description": "DNSI: LLM knowledge and tool API addressable over DNS (question in the QNAME, answer in TXT, related questions as CNAMEs).",
+  "description": "DNSi: Ask an AI a question from any device, on any network, using nothing but DNS.",
+  "license": "MIT",
+  "homepage": "https://dnsi.dev",
+  "keywords": [
+    "dns",
+    "llm",
+    "ai",
+    "cli",
+    "nameserver",
+    "agents",
+    "gethostbyname"
+  ],
   "files": [
     "dist",
     "docs",
@@ -18,7 +29,8 @@
     "start": "tsx src/index.ts",
     "ask": "tsx src/ask-cli.ts",
     "test": "tsx --test test/*.test.ts",
-    "verify": "pnpm typecheck && pnpm test"
+    "verify": "pnpm typecheck && pnpm test",
+    "prepublishOnly": "pnpm verify && pnpm build"
   },
   "bin": {
     "dnsi-server": "./dist/index.js",

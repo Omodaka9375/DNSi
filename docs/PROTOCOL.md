@@ -1,22 +1,22 @@
-# DNSI Protocol Specification
+# DNSi Protocol Specification
 
-Who this is for: anyone implementing a DNSI client or server, or auditing
+Who this is for: anyone implementing a DNSi client or server, or auditing
 the wire behavior. It is deliberately exact; if you want the plain-language
 version, read [PLAIN.md](PLAIN.md) first.
 
 Version 0.3. This document describes the wire contract implemented by
-`src/wire.ts` and `src/name.ts`. It is the reference for building DNSI
+`src/wire.ts` and `src/name.ts`. It is the reference for building DNSi
 clients and for writing the public docs.
 
 ## 0. Glossary
 
 | Term | Meaning |
 |---|---|
-| QNAME | the domain name being queried; DNSI puts the question in it |
-| TXT | a DNS record type that carries text; DNSI puts the answer in it |
-| CNAME | a pointer to another name; DNSI uses it for related questions |
-| A record | a DNS record holding an IPv4 address; DNSI packs answer bytes into these |
-| TTL | seconds a resolver may cache the answer (DNSI: 60 or 3600) |
+| QNAME | the domain name being queried; DNSi puts the question in it |
+| TXT | a DNS record type that carries text; DNSi puts the answer in it |
+| CNAME | a pointer to another name; DNSi uses it for related questions |
+| A record | a DNS record holding an IPv4 address; DNSi packs answer bytes into these |
+| TTL | seconds a resolver may cache the answer (DNSi: 60 or 3600) |
 | zone | the domain suffix this server is responsible for, e.g. `dnsi.test` |
 | token | a secret label embedded in the name, required by private zones |
 | SERVFAIL / REFUSED / NXDOMAIN | DNS error codes: server failed / refused / name unknown |
@@ -25,7 +25,7 @@ clients and for writing the public docs.
 
 ## 1. Model
 
-DNSI is a knowledge and tool API spoken over DNS. Three namespaces live
+DNSi is a knowledge and tool API spoken over DNS. Three namespaces live
 under one or more zones (default `dnsi.test`):
 
 ```text
@@ -60,7 +60,7 @@ Rules:
 - The resulting name must fit in 253 bytes including the `ask.<zone>`
   suffix, or the question is rejected.
 
-Example: `What is DNSI?` becomes
+Example: `What is DNSi?` becomes
 `%57hat-is-%44%4E%53%49%3F.ask.dnsi.test`. Decoding is the inverse;
 the wire always carries lowercase (DNS names are case-insensitive), and
 the decoder accepts both hex cases.
@@ -110,8 +110,8 @@ retry over TCP. TCP responses are never truncated.
 ### 3.5 EDNS0
 
 Clients that send an OPT record announce their UDP payload size in the
-OPT class. DNSI honors it: the UDP response is sent whole when it fits
-in `min(senderSize, 4096)`, otherwise TC=1. DNSI appends its own OPT
+OPT class. DNSi honors it: the UDP response is sent whole when it fits
+in `min(senderSize, 4096)`, otherwise TC=1. DNSi appends its own OPT
 (advertising payload size 1232) to every response for an EDNS query.
 
 ### 3.6 TTL policy
@@ -122,7 +122,7 @@ in `min(senderSize, 4096)`, otherwise TC=1. DNSI appends its own OPT
 | Canonical (deterministic tool results, usage)    | 3600  |
 
 TTL 60 answers are cached by the server for their TTL; canonical answers
-are served "free" from cache for an hour. Resolvers in front of DNSI get
+are served "free" from cache for an hour. Resolvers in front of DNSi get
 the same effect for the whole internet.
 
 ## 4. Tool namespace
@@ -204,18 +204,18 @@ and cost, not determined adversaries.
   mechanism for longer questions.
 - A-mode answers: 64 A records = 256 answer bytes; longer answers are
   silently cut at the cap (the client sees truncated text).
-- Long TXT answers exceed classic 512-byte UDP; DNSI sets TC and clients
+- Long TXT answers exceed classic 512-byte UDP; DNSi sets TC and clients
   retry over TCP, or resolvers use EDNS0.
-- Answers are unencrypted plaintext: DNSI carries no secrets, ever.
+- Answers are unencrypted plaintext: DNSi carries no secrets, ever.
 - Answer owner names use a compression pointer (offset 12); CNAME rdata
   targets are uncompressed. Compression pointers are followed when read.
 
 ## 8. Reference transcript (demo mode; the server repeats the question back)
 
 ```text
-dig +short TXT "What is DNSI?" @server -p 5353
+dig +short TXT "What is DNSi?" @server -p 5353
 ;; ANSWER (TXT, 34 bytes):
-DNSI (echo backend): What is DNSI?
+DNSi (echo backend): What is DNSi?
 ;; ANSWER (CNAME, related questions):
   what-is-dnsi.ask.dnsi.test
   list-tools.ask.dnsi.test
@@ -230,7 +230,7 @@ dig +short TXT tool.hash.hello.ask.dnsi.test
 
 dig +short TXT ask.dnsi.test
 ;; ANSWER (TXT, 136 bytes):
-DNSI: send a question, e.g. what-is-dnsi.ask.dnsi.test (TXT over UDP/TCP). tools: time, echo, uuid, hash (tool.<name>.<args>.ask.<zone>)
+DNSi: send a question, e.g. what-is-dnsi.ask.dnsi.test (TXT over UDP/TCP). tools: time, echo, uuid, hash (tool.<name>.<args>.ask.<zone>)
 
 dig +short TXT example.com
 ;; rcode=3 (NXDOMAIN)

@@ -1,6 +1,6 @@
 /**
  * Minimal DNS wire format: query parsing and response encoding.
- * We own the wire code on purpose: DNSI is a protocol experiment and needs
+ * We own the wire code on purpose: DNSi is a protocol experiment and needs
  * exact control over TXT chunking and CNAME answers. No name compression is
  * emitted (legal and simpler); compression pointers are followed when reading.
  */

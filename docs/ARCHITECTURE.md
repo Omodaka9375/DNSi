@@ -1,11 +1,11 @@
-# DNSI Architecture
+# DNSi Architecture
 
 Who this is for: contributors reading or changing the code. It assumes you
 know DNS basics (QNAME, TXT, CNAME, TTL); those are defined in
 [PROTOCOL.md](PROTOCOL.md).
 
 One process, zero runtime dependencies. The DNS wire code is hand-rolled
-(`src/wire.ts`) because DNSI is a protocol project and needs exact
+(`src/wire.ts`) because DNSi is a protocol project and needs exact
 control over TXT chunking and CNAME answers.
 
 ```text

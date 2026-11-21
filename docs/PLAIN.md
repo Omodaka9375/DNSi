@@ -1,4 +1,4 @@
-# DNSI in plain words
+# DNSi in plain words
 
 ## What is this?
 
@@ -10,12 +10,25 @@ DNS. Every phone, laptop, router, fridge and industrial robot on earth can
 call it, no app required. But it only knows one kind of answer: "what number
 is this name?"
 
-DNSI teaches that old service a new trick. Now you can dial it and ask
+DNSi teaches that old service a new trick. Now you can dial it and ask
 anything, and an AI answers.
 
 ```text
 you:    ask "why is the sky blue"        (as a weird-looking website name)
 dnsi:   "Because air scatters blue light more than red..."   (as a text answer)
+```
+
+The fastest way to feel it (once the public instance is live):
+
+```bash
+npx dnsi-ask "what is dnsi"
+```
+
+Or run your own in one minute, no account, no API key:
+
+```bash
+pnpm install && pnpm start     # window 1
+pnpm ask -- "what is dnsi" --local   # window 2
 ```
 
 That is the whole idea. No app to install. No account. No website to open.
@@ -26,7 +39,7 @@ If your device can look up a domain name, it can ask an AI a question.
 **1. The network is blocking you.**
 Hotel wifi, airplane wifi, office networks, whole countries. They block
 apps and websites. They almost never block DNS, because the internet
-stops working without it. DNSI rides that one open lane.
+stops working without it. DNSi rides that one open lane.
 
 **2. You live in a terminal.**
 You are already in a shell. Opening a browser, logging into a chat site,
@@ -42,7 +55,7 @@ apps. It can only look up names. It can now ask "what time is it",
 "what is the hash of this", or a real question.
 
 **4. You want one place your whole team can ask.**
-Your company runs its own DNSI. Now "how do I connect to the vpn" is a
+Your company runs its own DNSi. Now "how do I connect to the vpn" is a
 name anyone inside the network can look up. IT writes the answer once.
 Everyone asks by typing. No wiki, no ticket queue, no intranet.
 
@@ -50,9 +63,9 @@ Everyone asks by typing. No wiki, no ticket queue, no intranet.
 
 It is a *repurposing*, and it is deliberate.
 
-DNS was built to carry questions and answers. DNSI just points it at a
+DNS was built to carry questions and answers. DNSi just points it at a
 machine that can actually answer. That said, we are not pretending it is
-normal: using DNS this way surprises security people, so DNSI is built
+normal: using DNS this way surprises security people, so DNSi is built
 with the safety features they would demand anyway - rate limits, no
 logging of who asked, and an option to only accept the most careful
 connection type. It is the polite version of a technique that already
@@ -91,7 +104,7 @@ pnpm start
 ## The one-sentence pitch
 
 For people stuck on locked-down networks or tiny devices who cannot open a
-browser or install an app, DNSI is a question box that works anywhere the
+browser or install an app, DNSi is a question box that works anywhere the
 internet's phone book works, unlike chat apps that need ports, accounts
 and installs.
 

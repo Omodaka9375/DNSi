@@ -44,9 +44,9 @@ test("udp: question answered, related questions are resolvable CNAMEs", async ()
     backend,
   });
   try {
-    const first = await queryUdp(server.udpPort, qnameFor("What is DNSI?"));
+    const first = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(first.rcode, 0);
-    assert.ok(first.txt.includes("DNSI (echo backend): What is DNSI?"));
+    assert.ok(first.txt.includes("DNSi (echo backend): What is DNSi?"));
     assert.ok(first.cnames.length >= 1);
 
     // follow the graph: the CNAME target is itself a question
@@ -58,7 +58,7 @@ test("udp: question answered, related questions are resolvable CNAMEs", async ()
 
     // cache: same question hits the cache (2 calls so far: original + the
     // distinct related question resolved via its CNAME)
-    const again = await queryUdp(server.udpPort, qnameFor("What is DNSI?"));
+    const again = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(again.txt, first.txt);
     assert.equal(backend.calls, 2);
   } finally {
@@ -136,7 +136,7 @@ test("usage answer on bare zone", async () => {
   try {
     const res = await queryUdp(server.udpPort, `ask.${ZONE}`);
     assert.equal(res.rcode, 0);
-    assert.ok(res.txt.includes("DNSI"));
+    assert.ok(res.txt.includes("DNSi"));
   } finally {
     await server.stop();
   }
@@ -145,12 +145,12 @@ test("usage answer on bare zone", async () => {
 test("A mode: gethostbyname emulation reassembles the answer text", async () => {
   const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
   try {
-    const qn = qnameFor("What is DNSI?");
+    const qn = qnameFor("What is DNSi?");
     const res = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, RR_A);
     assert.equal(res.rcode, 0);
     assert.ok(res.a.length >= 1);
     assert.equal(res.txt, ""); // A mode carries no TXT
-    assert.equal(aRecordsToText(res.a), "DNSI (echo backend): What is DNSI?");
+    assert.equal(aRecordsToText(res.a), "DNSi (echo backend): What is DNSi?");
     // tools work the same way for constrained devices
     const hash = await queryUdp(server.udpPort, `tool.hash.hi.ask.${ZONE}`, "127.0.0.1", 5000, RR_A);
     assert.equal(aRecordsToText(hash.a).length, 64);
@@ -228,7 +228,7 @@ test("sessions: questions over 200 bytes ride in parts, final part answers", asy
     assert.ok(finalQn);
     const answer = await queryUdp(server.udpPort, finalQn);
     assert.equal(answer.rcode, 0);
-    assert.equal(answer.txt, `DNSI (echo backend): ${question}`);
+    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
 
     // session is consumed: re-sending the final part restarts a new session
     const again = await queryUdp(server.udpPort, finalQn);

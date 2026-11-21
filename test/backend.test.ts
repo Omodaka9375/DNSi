@@ -17,7 +17,7 @@ const COMPLETIONS_OK = {
   choices: [
     {
       message: {
-        content: "DNSI answers questions over DNS.\nRELATED: what is dnsi | how fast is dnsi",
+        content: "DNSi answers questions over DNS.\nRELATED: what is dnsi | how fast is dnsi",
       },
     },
   ],
@@ -27,7 +27,7 @@ test("openai backend: happy path parses answer and RELATED line", async () => {
   const { impl, calls } = mockFetch(200, COMPLETIONS_OK);
   const backend = new OpenAICompatBackend("https://api.example/v1", "sk-test", "m1", impl);
   const answer = await backend.ask("what is dnsi");
-  assert.equal(answer.text, "DNSI answers questions over DNS.");
+  assert.equal(answer.text, "DNSi answers questions over DNS.");
   assert.deepEqual(answer.related, ["what is dnsi", "how fast is dnsi"]);
   assert.equal(answer.canonical, false);
   assert.equal(calls.length, 1);

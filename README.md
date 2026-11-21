@@ -1,9 +1,9 @@
-# DNSI
+# DNSi
 
 **Ask an AI a question from any device, on any network, using nothing but DNS.**
 
 No app. No login. No HTTP. Every computer, router, printer and embedded
-controller on earth can look up a domain name. DNSI turns that lookup into a
+controller on earth can look up a domain name. DNSi turns that lookup into a
 question, and the answer comes back as the reply.
 
 ```bash
@@ -15,7 +15,7 @@ pnpm ask -- "how do I split a git commit"
 
 Some networks block everything except DNS: hotel wifi, airplanes, locked-down
 offices. Some devices cannot run apps at all: sensors, PLCs, 20 year old
-firmware. All of them can look up a name. DNSI is the question box that works
+firmware. All of them can look up a name. DNSi is the question box that works
 in exactly those places, because it is nothing but a name lookup.
 
 ## What people use it for
@@ -33,7 +33,7 @@ in exactly those places, because it is nothing but a name lookup.
 
 ## How is this different
 
-Asking an AI over DNS exists as demo projects. DNSI is built as a service
+Asking an AI over DNS exists as demo projects. DNSi is built as a service
 instead of a demo:
 
 - **Tool calls, not just chat.** `tool.time`, `tool.uuid`, `tool.hash` are
@@ -61,16 +61,22 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-pnpm install
-pnpm start                  # window 1: the server (demo mode, no API key needed)
+npx dnsi-ask "what is dnsi"    # asks the public instance at dnsi.dev (once live)
+```
 
-pnpm ask -- "what is dnsi"  # window 2: ask anything
+Run your own:
+
+```bash
+pnpm install
+pnpm start                       # window 1: the server (demo mode, no API key)
+
+pnpm ask -- "what is dnsi" --local   # window 2: ask your own server
 ```
 
 Works with standard tools as well:
 
 ```bash
-dig +short TXT "what is dnsi" @127.0.0.1 -p 5353
+dig +short TXT "what is dnsi" @dnsi.dev
 ```
 
 For real AI answers, point it at any OpenAI-compatible provider:
@@ -98,8 +104,9 @@ Questions and answers are plain text, so do not send passwords through it.
 
 ```bash
 npm install -g dnsi
-dnsi-server                 # run the nameserver
-dnsi-ask "your question"    # ask from anywhere
+dnsi-ask "your question"    # asks the public instance (dnsi.dev) by default
+dnsi-ask "your question" --local   # asks a server on your own machine
+dnsi-server                 # run your own nameserver
 ```
 
 Requires Node 22+. 35 kB download, zero runtime dependencies.

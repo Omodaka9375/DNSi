@@ -22,8 +22,8 @@ async function show(label: string, fn: () => Promise<{ rcode: number; txt: strin
   console.log();
 }
 
-await show('dig +short TXT "What is DNSI?" @server -p 5353',
-  () => queryUdp(server.udpPort, buildQuestionQname("What is DNSI?", ZONE) ?? ""));
+await show('dig +short TXT "What is DNSi?" @server -p 5353',
+  () => queryUdp(server.udpPort, buildQuestionQname("What is DNSi?", ZONE) ?? ""));
 await show("dig +short TXT tool.time.ask.dnsi.test",
   () => queryUdp(server.udpPort, `tool.time.ask.${ZONE}`));
 await show("dig +short TXT tool.hash.hello.ask.dnsi.test",
