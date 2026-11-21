@@ -1,8 +1,27 @@
 # DNSI Protocol Specification
 
+Who this is for: anyone implementing a DNSI client or server, or auditing
+the wire behavior. It is deliberately exact; if you want the plain-language
+version, read [PLAIN.md](PLAIN.md) first.
+
 Version 0.3. This document describes the wire contract implemented by
 `src/wire.ts` and `src/name.ts`. It is the reference for building DNSI
 clients and for writing the public docs.
+
+## 0. Glossary
+
+| Term | Meaning |
+|---|---|
+| QNAME | the domain name being queried; DNSI puts the question in it |
+| TXT | a DNS record type that carries text; DNSI puts the answer in it |
+| CNAME | a pointer to another name; DNSI uses it for related questions |
+| A record | a DNS record holding an IPv4 address; DNSI packs answer bytes into these |
+| TTL | seconds a resolver may cache the answer (DNSI: 60 or 3600) |
+| zone | the domain suffix this server is responsible for, e.g. `dnsi.test` |
+| token | a secret label embedded in the name, required by private zones |
+| SERVFAIL / REFUSED / NXDOMAIN | DNS error codes: server failed / refused / name unknown |
+| TC | truncation flag: "answer too big for UDP, retry over TCP" |
+| EDNS0 | DNS extension letting UDP responses exceed 512 bytes |
 
 ## 1. Model
 
@@ -191,7 +210,7 @@ and cost, not determined adversaries.
 - Answer owner names use a compression pointer (offset 12); CNAME rdata
   targets are uncompressed. Compression pointers are followed when read.
 
-## 8. Reference transcript (echo backend)
+## 8. Reference transcript (demo mode; the server repeats the question back)
 
 ```text
 dig +short TXT "What is DNSI?" @server -p 5353

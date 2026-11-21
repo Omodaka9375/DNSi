@@ -1,6 +1,10 @@
 # DNSI for agents and devices
 
-The killer use case: an LLM knowledge and tool API for environments that
+Who this is for: developers integrating DNSI into software (agents, scripts,
+device firmware). For the plain-language overview, read
+[PLAIN.md](PLAIN.md) first.
+
+The strongest use: an AI question-and-tool service for environments that
 have no HTTP client. Three real audiences, one protocol.
 
 ## 1. Sandboxed AI agents
@@ -65,11 +69,11 @@ product, not a UI nicety:
   record at a specialist DNSI (a medical zone, a legal zone) and the
   client needs no new configuration.
 
-Example walk (echo backend):
+Example walk (in demo mode, where the server repeats your question back):
 
 ```text
 dig TXT "What is DNSI?" @server
-  TXT  "DNSI (echo backend): What is DNSI?"
+  TXT  "DNSI (echo backend): What is DNSI?"   ; literal server output, demo mode
   CNAME what-is-dnsi.ask.dnsi.test
   CNAME list-tools.ask.dnsi.test
 
