@@ -1,5 +1,8 @@
 # DNSI: Domain Name System Intelligence
 
+> **New here?** Read [docs/PLAIN.md](docs/PLAIN.md) first: what this is in
+> plain words, when you would actually use it, and whether it is a hack.
+
 DNS is the most reachable API on earth: every OS, router, and embedded device
 speaks it. DNSI points that 1983 question-answering machine at an LLM.
 
@@ -98,6 +101,7 @@ pnpm build       # emit dist/
 
 ## Documentation
 
+- [PLAIN.md](docs/PLAIN.md) - start here: plain words, real scenarios, no jargon
 - [PROTOCOL.md](docs/PROTOCOL.md) - the wire contract: QNAME encoding,
   TXT chunking, CNAME graph, tool namespace, TTLs, errors, reference transcript
 - [AGENTS.md](docs/AGENTS.md) - the killer use case: sandboxed agents,
