@@ -1,0 +1,26 @@
+{
+  "name": "dnsi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "DNSI: LLM knowledge and tool API addressable over DNS (question in the QNAME, answer in TXT, related questions as CNAMEs).",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/index.ts",
+    "ask": "tsx src/ask-cli.ts",
+    "test": "tsx --test test/name.test.ts test/e2e.test.ts",
+    "verify": "pnpm typecheck && pnpm test"
+  },
+  "bin": {
+    "dnsi-ask": "./dist/ask-cli.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
