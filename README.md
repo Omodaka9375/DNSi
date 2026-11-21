@@ -25,7 +25,12 @@ a question is a hostname and an answer is a DNS record.
   records (4 bytes per address) - a pure `gethostbyname` device reads the
   answer from `h_addr_list`. `pnpm ask -- "q" --a` uses it.
 - **512-byte safety.** UDP answers that would not fit are returned
-  TC=1 (retry over TCP); TCP is always complete.
+  TC=1 (retry over TCP); TCP is always complete. EDNS0 senders get the
+  full answer over UDP up to their advertised payload size.
+- **Sessions.** Questions over 200 bytes ride in `sess.<sid>.<n>.<total>`
+  chunk queries; `pnpm ask` switches automatically. Up to ~1000 bytes.
+- **Per-zone tokens.** A zone can require `t.<token>` in the name; wrong
+  or missing token is REFUSED (rcode 5). Set via `DNSI_ZONES=zone:token`.
 - **TTLs.** 60 for dynamic answers (LLM output, time), 3600 for canonical
   (deterministic tool results). Answers get served free from cache forever
   after the first resolution.
@@ -77,6 +82,8 @@ compact-answer mode is tracked as a follow-up.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DNSI_ZONE` | `dnsi.test` | zone this server answers for |
+| `DNSI_TOKEN` | - | require this token for `DNSI_ZONE` |
+| `DNSI_ZONES` | - | multi-zone override: `zone[:token],zone2[:token2]` |
 | `DNSI_PORT` | `5353` | UDP and TCP port |
 | `DNSI_TCP_ONLY` | off | `1` binds TCP only |
 | `DNSI_BACKEND` | auto | `echo` forces the echo backend |

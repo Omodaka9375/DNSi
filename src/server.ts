@@ -1,16 +1,22 @@
 import dgram from "node:dgram";
 import net from "node:net";
 import { AnswerCache } from "./cache.js";
-import { buildQuestionQname, parseDnsiQname } from "./name.js";
+import {
+  buildQuestionQname,
+  decodeEncodedText,
+  parseDnsiQname,
+  type ZoneConfig,
+} from "./name.js";
 import { RateLimiter } from "./ratelimit.js";
 import { listTools, runTool } from "./tools.js";
 import {
+  EDNS_PAYLOAD,
   encodeResponse,
   parseQuery,
   RCODE,
-  chunkUtf8,
   RR_A,
   UDP_MAX,
+  chunkUtf8,
   type AnswerRecord,
   type QueryInfo,
 } from "./wire.js";
@@ -22,8 +28,11 @@ const TTL_CANONICAL = 3600; // deterministic, cache-friendly answers
 /** A-mode cap: one IPv4 per 4 answer bytes (gethostbyname returns a list). */
 const MAX_A_RECORDS = 64;
 
+/** Sessions expire this long after their last chunk. */
+const SESSION_TTL_MS = 10 * 60 * 1000;
+
 export type DnsiOptions = {
-  zone: string;
+  zones: ZoneConfig[];
   udpPort: number;
   tcpPort: number;
   tcpOnly?: boolean;
@@ -62,11 +71,14 @@ function cacheKey(qtype: number, qname: string): string {
   return `${qtype}:${qname}`;
 }
 
+type SessionEntry = { parts: Map<number, string>; total: number; created: number };
+
 export class Dnsi {
   private cache = new AnswerCache(10_000);
   private readonly limiter: RateLimiter | null;
   private inFlight = 0;
   private readonly maxInFlight: number;
+  private sessions = new Map<string, SessionEntry>();
 
   constructor(private readonly opts: DnsiOptions) {
     this.limiter = opts.rateLimit
@@ -75,20 +87,39 @@ export class Dnsi {
     this.maxInFlight = opts.maxInFlight ?? 32;
   }
 
-  /** msg -> response bytes, or null when the datagram is not a query. */
-  async handleQuery(msg: Buffer, clientIp: string | null): Promise<Buffer | null> {
+  /**
+   * msg -> response bytes, or null when the datagram is not a query.
+   * transport="udp" applies classic-UDP (or negotiated-EDNS) truncation.
+   */
+  async handleQuery(
+    msg: Buffer,
+    clientIp: string | null,
+    transport: "udp" | "tcp" = "udp",
+  ): Promise<Buffer | null> {
     const q = parseQuery(msg);
     if (!q) return null;
     if (clientIp && this.limiter && !this.limiter.allow(clientIp)) {
       return encodeResponse(q.id, q.qname, q.qtype, q.qclass, [], RCODE.SERVFAIL);
     }
     const { records, rcode } = await this.resolve(q);
-    return encodeResponse(q.id, q.qname, q.qtype, q.qclass, records, rcode);
+    const ednsPayload = q.ednsSize !== null ? EDNS_PAYLOAD : null;
+
+    if (transport === "udp") {
+      // Classic UDP caps at 512; an EDNS0 sender raises the cap to the
+      // smaller of its advertised size and our 4096 ceiling.
+      const limit =
+        q.ednsSize !== null && q.ednsSize >= 512 ? Math.min(q.ednsSize, 4096) : UDP_MAX;
+      const full = encodeResponse(q.id, q.qname, q.qtype, q.qclass, records, rcode, false, ednsPayload);
+      if (full.length <= limit) return full;
+      return encodeResponse(q.id, q.qname, q.qtype, q.qclass, [], rcode, true, ednsPayload);
+    }
+    return encodeResponse(q.id, q.qname, q.qtype, q.qclass, records, rcode, false, ednsPayload);
   }
 
   private async resolve(q: QueryInfo): Promise<ResolveResult> {
-    const parsed = parseDnsiQname(q.qname, this.opts.zone);
+    const parsed = parseDnsiQname(q.qname, this.opts.zones);
     if (!parsed) return { records: [], rcode: RCODE.NXDOMAIN };
+    if (parsed.kind === "unauthorized") return { records: [], rcode: RCODE.REFUSED };
 
     const cached = this.cache.get(cacheKey(q.qtype, q.qname));
     if (cached) return { records: cached, rcode: RCODE.NOERROR };
@@ -98,8 +129,8 @@ export class Dnsi {
         return {
           records: [
             txtRecord(
-              `DNSI: send a question, e.g. what-is-dnsi.ask.${this.opts.zone} (TXT over UDP/TCP). ` +
-                `${listTools()}`,
+              `DNSI: send a question, e.g. what-is-dnsi.ask.${this.opts.zones[0]?.zone ?? "dnsi.test"} ` +
+                `(TXT over UDP/TCP). ${listTools()}`,
               TTL_CANONICAL,
             ),
           ],
@@ -107,9 +138,50 @@ export class Dnsi {
         };
       case "tool":
         return this.tool(parsed.tool, parsed.args, q.qname, q.qtype);
+      case "session":
+        return await this.sessionChunk(parsed.sid, parsed.n, parsed.total, parsed.chunk, q);
       case "question":
         return this.question(parsed.question, q.qname, q.qtype);
     }
+  }
+
+  private async sessionChunk(
+    sid: string,
+    n: number,
+    total: number,
+    chunk: string,
+    q: QueryInfo,
+  ): Promise<ResolveResult> {
+    const now = Date.now();
+    for (const [k, v] of this.sessions) {
+      if (now - v.created > SESSION_TTL_MS) this.sessions.delete(k);
+    }
+
+    let entry = this.sessions.get(sid);
+    if (!entry || entry.total !== total) {
+      entry = { parts: new Map(), total, created: now };
+    }
+    entry.created = now;
+    entry.parts.set(n, chunk);
+    this.sessions.set(sid, entry);
+
+    if (entry.parts.size < total) {
+      return {
+        records: [txtRecord(`stored ${entry.parts.size}/${total}`, TTL_DYNAMIC)],
+        rcode: RCODE.NOERROR,
+      };
+    }
+
+    // Assemble in part order and answer the assembled question inline.
+    const pieces: string[] = [];
+    for (let i = 1; i <= total; i += 1) {
+      const p = entry.parts.get(i);
+      if (p === undefined) break;
+      pieces.push(p);
+    }
+    this.sessions.delete(sid);
+    const question = decodeEncodedText(pieces.join(""));
+    return this.question(question, q.qname, q.qtype, false);
   }
 
   private tool(tool: string, args: string, qname: string, qtype: number): ResolveResult {
@@ -127,7 +199,12 @@ export class Dnsi {
     return { records, rcode: RCODE.NOERROR };
   }
 
-  private async question(text: string, qname: string, qtype: number): Promise<ResolveResult> {
+  private async question(
+    text: string,
+    qname: string,
+    qtype: number,
+    cacheable = true,
+  ): Promise<ResolveResult> {
     if (this.inFlight >= this.maxInFlight) {
       return { records: [], rcode: RCODE.SERVFAIL }; // shed load instead of piling up
     }
@@ -149,13 +226,14 @@ export class Dnsi {
     } else {
       records = [txtRecord(answer.text, ttl)];
       for (const rel of answer.related.slice(0, 3)) {
-        const target = buildQuestionQname(rel, this.opts.zone);
+        const target = buildQuestionQname(rel, this.opts.zones[0]?.zone ?? "dnsi.test");
         if (target) records.push({ type: "CNAME", target, ttl: TTL_DYNAMIC });
       }
     }
-    this.cache.set(cacheKey(qtype, qname), records, ttl);
+    if (cacheable) this.cache.set(cacheKey(qtype, qname), records, ttl);
     return { records, rcode: RCODE.NOERROR };
   }
+
   /** Header-only TC response for a query whose UDP answer would not fit. */
   truncatedResponse(msg: Buffer): Buffer | null {
     const q = parseQuery(msg);
@@ -189,7 +267,7 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
           if (buf.length < 2 + len) break;
           const msg = Buffer.from(buf.subarray(2, 2 + len));
           buf = Buffer.from(buf.subarray(2 + len));
-          const resp = await dnsi.handleQuery(msg, socket.remoteAddress ?? null);
+          const resp = await dnsi.handleQuery(msg, socket.remoteAddress ?? null, "tcp");
           if (resp) {
             const framed = Buffer.alloc(2 + resp.length);
             framed.writeUInt16BE(resp.length, 0);
@@ -212,13 +290,8 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
   if (!opts.tcpOnly) {
     udp = dgram.createSocket("udp4");
     udp.on("message", (msg, rinfo) => {
-      void dnsi.handleQuery(msg, rinfo.address).then((resp) => {
-        if (!resp) return;
-        // Classic UDP: a response over 512 bytes is truncated to header-only
-        // with TC set, so resolvers retry over TCP instead of losing the tail
-        // to middleboxes.
-        const out = resp.length > UDP_MAX ? dnsi.truncatedResponse(msg) : resp;
-        if (out) udp?.send(out, rinfo.port, rinfo.address);
+      void dnsi.handleQuery(msg, rinfo.address, "udp").then((resp) => {
+        if (resp) udp?.send(resp, rinfo.port, rinfo.address);
       });
     });
     udp.on("error", () => {}); // never crash on a bad datagram

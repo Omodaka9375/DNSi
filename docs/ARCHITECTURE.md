@@ -93,9 +93,10 @@ control over TXT chunking and CNAME answers.
 
 ## Testing
 
-`pnpm verify` = `tsc --noEmit` + 22 node:test tests: name codec
+`pnpm verify` = `tsc --noEmit` + 26 node:test tests: name codec
 roundtrips (ascii, unicode, length limits), wire chunking, the
 OpenAI-compatible backend against a mocked fetch, and end-to-end tests
 driving the real server over UDP and TCP (question + CNAME graph, tools,
 A mode reassembly, qtype-scoped caching, NXDOMAIN, rate limit, usage,
-512-byte TC truncation).
+512-byte TC truncation, EDNS0 large-payload UDP, long-question sessions,
+per-zone token REFUSED/accept, multi-zone routing).

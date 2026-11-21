@@ -24,6 +24,8 @@ Port 53 needs privileges; develop on 5353.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DNSI_ZONE` | `dnsi.test` | zone this server answers for |
+| `DNSI_TOKEN` | - | require this token for `DNSI_ZONE` (`...t.<token>.ask.<zone>`) |
+| `DNSI_ZONES` | - | multi-zone override: `zone[:token],zone2[:token2]` |
 | `DNSI_PORT` | `5353` | UDP and TCP port |
 | `DNSI_TCP_ONLY` | off | `1` binds TCP only (recommended in production) |
 | `DNSI_BACKEND` | auto | `echo` forces the echo backend |
@@ -59,11 +61,15 @@ needs nothing and is safe for demos.
 - **No auth by design.** v0.1 is public knowledge. If you need private
   zones, the roadmap item is per-zone tokens encoded in the QNAME.
 
-## Known limitations (v0.2)
+## Known limitations (v0.3)
 
-- Questions max 200 bytes; no session/continuation for longer input.
+- Direct questions max 200 bytes; session mode raises this to ~1000
+  bytes (32 chunks, 10-minute expiry, answers not cached).
 - A-mode answers cap at 64 A records (256 answer bytes); longer answers
   are cut at the cap.
+- Zone tokens travel as DNS labels: they rate-limit abuse and cost, they
+  do not survive an on-path observer. For real confidentiality, front
+  with DoT/DoH.
 - No TLS layer (DoT/DoH fronting is a deployment concern, not built in).
 
 ## Verification

@@ -4,7 +4,7 @@ import { startServer } from "../src/server.js";
 import { queryTcp, queryUdp } from "../src/query.js";
 
 const ZONE = "dnsi.test";
-const server = await startServer({ zone: ZONE, udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
 
 async function show(label: string, fn: () => Promise<{ rcode: number; txt: string; cnames: string[] }>) {
   console.log(`### ${label}`);

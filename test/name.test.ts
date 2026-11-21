@@ -12,7 +12,7 @@ test("question roundtrip preserves ascii case and punctuation", () => {
   const q = "What is DNSI? (really)";
   const qname = buildQuestionQname(q, zone);
   assert.ok(qname);
-  const parsed = parseDnsiQname(qname, zone);
+  const parsed = parseDnsiQname(qname, [{ zone }]);
   assert.ok(parsed);
   assert.equal(parsed.kind, "question");
   if (parsed.kind === "question") {
@@ -25,7 +25,7 @@ test("question roundtrip preserves unicode", () => {
   const q = "translate h\u00e9llo \u2192 \u4e2d\u6587 \u2764";
   const qname = buildQuestionQname(q, zone);
   assert.ok(qname);
-  const parsed = parseDnsiQname(qname, zone);
+  const parsed = parseDnsiQname(qname, [{ zone }]);
   assert.ok(parsed);
   if (parsed.kind === "question") assert.equal(parsed.question, q);
 });
@@ -40,7 +40,7 @@ test("long questions are rejected, not silently truncated", () => {
 
 test("tool qnames parse with decoded args", () => {
   const zone = "dnsi.test";
-  const parsed = parseDnsiQname("tool.echo.hello%20world.ask." + zone, zone);
+  const parsed = parseDnsiQname("tool.echo.hello%20world.ask." + zone, [{ zone }]);
   assert.ok(parsed);
   if (parsed.kind === "tool") {
     assert.equal(parsed.tool, "echo");
@@ -51,13 +51,13 @@ test("tool qnames parse with decoded args", () => {
 });
 
 test("bare zone returns usage", () => {
-  const parsed = parseDnsiQname("ask.dnsi.test", "dnsi.test");
+  const parsed = parseDnsiQname("ask.dnsi.test", [{ zone: "dnsi.test" }]);
   assert.ok(parsed);
   assert.equal(parsed.kind, "usage");
 });
 
 test("foreign names return null (NXDOMAIN)", () => {
-  assert.equal(parseDnsiQname("example.com", "dnsi.test"), null);
+  assert.equal(parseDnsiQname("example.com", [{ zone: "dnsi.test" }]), null);
 });
 
 test("chunkUtf8 respects 255 byte limit and unicode boundaries", () => {

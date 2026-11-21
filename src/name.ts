@@ -12,6 +12,13 @@
 
 const MAX_LABEL_BYTES = 50;
 const MAX_QUESTION_BYTES = 200;
+/** Long-question sessions: 32 chunks x 45 encoded bytes = ~1400 char budget. */
+export const MAX_SESSION_QUESTION_BYTES = 1000;
+const MAX_SESSION_CHUNK = 45;
+const MAX_SESSION_PARTS = 32;
+const SID_RE = /^[0-9a-f]{8}$/;
+
+export type ZoneConfig = { zone: string; token?: string };
 
 function questionToTokens(question: string): string[] {
   const bytes = Buffer.from(question, "utf8");
@@ -44,18 +51,59 @@ function packLabels(tokens: string[], max = MAX_LABEL_BYTES): string[] | null {
   return labels;
 }
 
+function fitQname(labels: string[]): string | null {
+  const total = labels.reduce((n, l) => n + l.length + 1, 0) + 1;
+  return total > 253 ? null : labels.join(".");
+}
+
 /** Build the full QNAME for a question, e.g. "what-is-dnsi.ask.dnsi.test". */
-export function buildQuestionQname(question: string, zone: string): string | null {
+export function buildQuestionQname(
+  question: string,
+  zone: string,
+  token?: string,
+): string | null {
   if (Buffer.byteLength(question, "utf8") > MAX_QUESTION_BYTES) return null;
   const qLabels = packLabels(questionToTokens(question));
   if (!qLabels || qLabels.length === 0) return null;
-  const suffix = ["ask", ...zone.split(".")];
-  const totalBytes =
-    qLabels.reduce((n, l) => n + l.length + 1, 0) +
-    suffix.reduce((n, l) => n + l.length + 1, 0) +
-    1;
-  if (totalBytes > 253) return null;
-  return [...qLabels, ...suffix].join(".");
+  const suffix = token ? ["t", token, "ask", ...zone.split(".")] : ["ask", ...zone.split(".")];
+  return fitQname([...qLabels, ...suffix]);
+}
+
+/**
+ * Split a question into encoded chunks for session transport
+ * (tokens are never split across chunks). Null when the question is
+ * too long even for sessions.
+ */
+export function chunkQuestion(question: string, maxChunk = MAX_SESSION_CHUNK): string[] | null {
+  if (Buffer.byteLength(question, "utf8") > MAX_SESSION_QUESTION_BYTES) return null;
+  const tokens = questionToTokens(question);
+  const chunks: string[] = [];
+  let cur = "";
+  for (const t of tokens) {
+    if (cur.length + t.length > maxChunk) {
+      chunks.push(cur);
+      cur = t;
+    } else {
+      cur += t;
+    }
+  }
+  if (cur.length > 0) chunks.push(cur);
+  return chunks.length <= MAX_SESSION_PARTS ? chunks : null;
+}
+
+/** Build a session-part QNAME: sess.<sid>.<n>.<total>.<chunk>.t.<token>.ask.<zone> */
+export function buildSessionQname(
+  sid: string,
+  n: number,
+  total: number,
+  chunkEncoded: string,
+  zone: string,
+  token?: string,
+): string | null {
+  const labels = ["sess", sid, String(n), String(total), chunkEncoded];
+  if (token) labels.push("t", token);
+  labels.push("ask", ...zone.split("."));
+  return fitQname(labels);
 }
 
 export function decodeEncodedText(encoded: string): string {
@@ -83,30 +131,68 @@ export function decodeEncodedText(encoded: string): string {
 export type DnsiQuery =
   | { kind: "question"; question: string }
   | { kind: "tool"; tool: string; args: string }
-  | { kind: "usage" };
+  | { kind: "session"; sid: string; n: number; total: number; chunk: string }
+  | { kind: "usage" }
+  | { kind: "unauthorized" };
 
 /**
- * Parse a QNAME against our zone. Returns null when the name is not
- * delegated to us. Patterns:
+ * Parse a QNAME against our zones. Returns null when the name belongs to
+ * nobody (NXDOMAIN) and kind "unauthorized" when the zone requires a
+ * token that the name does not carry.
+ *
+ * Patterns:
  *   <encoded question>.ask.<zone>
+ *   <encoded question>.t.<token>.ask.<zone>
  *   tool.<name>.<args...>.ask.<zone>
+ *   sess.<sid8hex>.<n>.<total>.<chunk>...[.t.<token>].ask.<zone>
  *   ask.<zone>                          -> usage help
  */
-export function parseDnsiQname(qname: string, zone: string): DnsiQuery | null {
+export function parseDnsiQname(qname: string, zones: ZoneConfig[]): DnsiQuery | null {
   const labels = qname.split(".");
-  const zoneLabels = zone.split(".");
-  if (labels.length <= zoneLabels.length) return null;
-  const tail = labels.slice(labels.length - zoneLabels.length);
-  if (tail.join(".") !== zoneLabels.join(".")) return null;
-  let rest = labels.slice(0, labels.length - zoneLabels.length);
-  if (rest[rest.length - 1] === "ask") rest = rest.slice(0, -1);
-  if (rest.length === 0) return { kind: "usage" };
-  const head = rest[0];
-  if (head === "tool" && rest.length >= 2) {
-    const tool = rest[1];
-    if (tool === undefined || tool.length === 0) return null;
-    const argsLabels = rest.slice(2);
-    return { kind: "tool", tool, args: decodeEncodedText(argsLabels.join("")) };
+  // longest suffix match wins ("a.b.c" before "b.c")
+  const sorted = [...zones].sort((a, b) => b.zone.length - a.zone.length);
+  for (const cfg of sorted) {
+    const zoneLabels = cfg.zone.split(".");
+    if (labels.length <= zoneLabels.length) continue;
+    const tail = labels.slice(labels.length - zoneLabels.length).join(".");
+    if (tail !== zoneLabels.join(".")) continue;
+
+    let rest = labels.slice(0, labels.length - zoneLabels.length);
+    if (rest[rest.length - 1] === "ask") rest = rest.slice(0, -1);
+
+    // per-zone token: ...t.<token>.ask.<zone>
+    if (cfg.token !== undefined) {
+      const tLabel = rest[rest.length - 2];
+      const tokLabel = rest[rest.length - 1];
+      if (tLabel !== "t" || tokLabel !== cfg.token) return { kind: "unauthorized" };
+      rest = rest.slice(0, -2);
+    }
+
+    if (rest.length === 0) return { kind: "usage" };
+
+    const head = rest[0];
+    const second = rest[1];
+    if (head === "sess" && second !== undefined && SID_RE.test(second) && rest.length >= 5) {
+      const n = Number(rest[2]);
+      const total = Number(rest[3]);
+      if (!Number.isInteger(n) || !Number.isInteger(total)) return null;
+      if (n < 1 || total < 1 || n > total || total > MAX_SESSION_PARTS) return null;
+      const chunkLabels = rest.slice(4);
+      if (chunkLabels.some((l) => l.length === 0)) return null;
+      return {
+        kind: "session",
+        sid: second,
+        n,
+        total,
+        chunk: decodeEncodedText(chunkLabels.join("")),
+      };
+    }
+    if (head === "tool" && rest.length >= 2) {
+      if (second === undefined || second.length === 0) return null;
+      const argsLabels = rest.slice(2);
+      return { kind: "tool", tool: second, args: decodeEncodedText(argsLabels.join("")) };
+    }
+    return { kind: "question", question: decodeEncodedText(rest.join("")) };
   }
-  return { kind: "question", question: decodeEncodedText(rest.join("")) };
+  return null;
 }

@@ -1,6 +1,6 @@
 import dgram from "node:dgram";
 import net from "node:net";
-import { encodeName, parseResponse, RR_TXT, RR_A, CLASS_IN } from "./wire.js";
+import { encodeName, parseResponse, RR_OPT, RR_TXT, RR_A, CLASS_IN } from "./wire.js";
 
 export type DnsiResponse = {
   rcode: number;
@@ -10,8 +10,13 @@ export type DnsiResponse = {
   a: string[];
 };
 
-/** Build a DNS query packet for one name (IN). */
-export function buildQuery(qname: string, qtype: number = RR_TXT, id?: number): Buffer | null {
+/** Build a DNS query packet for one name (IN), optionally with EDNS0 OPT. */
+export function buildQuery(
+  qname: string,
+  qtype: number = RR_TXT,
+  id?: number,
+  ednsPayload?: number,
+): Buffer | null {
   const name = encodeName(qname);
   if (!name) return null;
   const header = Buffer.alloc(12);
@@ -19,10 +24,18 @@ export function buildQuery(qname: string, qtype: number = RR_TXT, id?: number): 
   header.writeUInt16BE(qid & 0xffff, 0);
   header.writeUInt16BE(0x0100, 2); // RD
   header.writeUInt16BE(1, 4); // QDCOUNT
+  header.writeUInt16BE(ednsPayload !== undefined ? 1 : 0, 10); // ARCOUNT
   const qtail = Buffer.alloc(4);
   qtail.writeUInt16BE(qtype, 0);
   qtail.writeUInt16BE(CLASS_IN, 2);
-  return Buffer.concat([header, name, qtail]);
+  const parts: Buffer[] = [header, name, qtail];
+  if (ednsPayload !== undefined) {
+    const opt = Buffer.alloc(11);
+    opt.writeUInt16BE(RR_OPT, 1);
+    opt.writeUInt16BE(ednsPayload & 0xffff, 3);
+    parts.push(opt);
+  }
+  return Buffer.concat(parts);
 }
 
 export async function queryUdp(
@@ -31,8 +44,9 @@ export async function queryUdp(
   host = "127.0.0.1",
   timeoutMs = 5000,
   qtype: number = RR_TXT,
+  ednsPayload?: number,
 ): Promise<DnsiResponse> {
-  const query = buildQuery(qname, qtype);
+  const query = buildQuery(qname, qtype, undefined, ednsPayload);
   if (!query) throw new Error(`cannot encode qname: ${qname}`);
   const socket = dgram.createSocket("udp4");
   try {
@@ -78,8 +92,9 @@ export async function queryTcp(
   host = "127.0.0.1",
   timeoutMs = 10000,
   qtype: number = RR_TXT,
+  ednsPayload?: number,
 ): Promise<DnsiResponse> {
-  const query = buildQuery(qname, qtype);
+  const query = buildQuery(qname, qtype, undefined, ednsPayload);
   if (!query) throw new Error(`cannot encode qname: ${qname}`);
   const framed = Buffer.alloc(2 + query.length);
   framed.writeUInt16BE(query.length, 0);

@@ -1,21 +1,24 @@
 # DNSI Protocol Specification
 
-Version 0.2. This document describes the wire contract implemented by
+Version 0.3. This document describes the wire contract implemented by
 `src/wire.ts` and `src/name.ts`. It is the reference for building DNSI
 clients and for writing the public docs.
 
 ## 1. Model
 
 DNSI is a knowledge and tool API spoken over DNS. Three namespaces live
-under one zone (default `dnsi.test`):
+under one or more zones (default `dnsi.test`):
 
 ```text
 <encoded question>.ask.<zone>        knowledge questions
+<encoded question>.t.<token>.ask.<zone>   tokenized (private) zones
+sess.<sid>.<n>.<total>.<chunk>...ask.<zone>   long-question sessions
 tool.<name>.<args...>.ask.<zone>     tool calls
 ask.<zone>                           usage / help
 ```
 
-Anything outside the zone gets NXDOMAIN. Anything inside gets an ANSWER
+Anything outside the zones gets NXDOMAIN. A tokenized zone queried
+without its token gets REFUSED (rcode 5). Anything else gets an ANSWER
 section with TXT records; knowledge answers additionally carry CNAME
 records pointing at related questions.
 
@@ -85,7 +88,14 @@ Classic UDP responses over 512 bytes are replaced by a header-only
 response with TC=1 (rcode NOERROR, zero answers). Clients and resolvers
 retry over TCP. TCP responses are never truncated.
 
-### 3.5 TTL policy
+### 3.5 EDNS0
+
+Clients that send an OPT record announce their UDP payload size in the
+OPT class. DNSI honors it: the UDP response is sent whole when it fits
+in `min(senderSize, 4096)`, otherwise TC=1. DNSI appends its own OPT
+(advertising payload size 1232) to every response for an EDNS query.
+
+### 3.6 TTL policy
 
 | Answer kind                                      | TTL   |
 |--------------------------------------------------|-------|
@@ -116,11 +126,43 @@ message listing available tools (rcode NOERROR, so the client sees the
 hint). `args` are encoded with the same rules as questions (a literal
 `-` in args encodes as `%2D`).
 
+## 4.5 Sessions: questions over 200 bytes
+
+A question up to 200 bytes travels in one QNAME. Longer questions (up to
+~1000 bytes) ride in a session of chunk queries:
+
+```text
+sess.<sid>.<n>.<total>.<encoded-chunk>[.t.<token>].ask.<zone>
+```
+
+- `<sid>` is a random 8 hex character id chosen by the client.
+- `<n>`/`<total>` are 1-based part numbers; parts may arrive in any order.
+- `<encoded-chunk>` uses the question encoding, max 45 characters per
+  chunk, and `%XX` tokens are never split across chunks.
+- Each incomplete part answers `stored <have>/<total>` (TXT, TTL 60).
+- When all parts are present the server assembles the question in part
+  order, answers it inline on the final query (TXT + CNAME graph, or A
+  records for qtype A), and deletes the session.
+- Sessions expire after 10 minutes; max 32 parts. Session answers are
+  never cached (each session id is unique).
+- The reference client switches to session mode automatically for
+  questions over 200 bytes: `pnpm ask -- "long question..."`.
+
+## 4.6 Per-zone tokens
+
+Zones may require a token: the query name must embed `t.<token>` right
+before `ask.<zone>` (single label, `[a-z0-9-]`). A tokenized zone
+queried without the correct token answers REFUSED (rcode 5); the usage
+record (`ask.<zone>`) stays public. Tokens are DNS labels: they are
+visible to anyone who can observe the query - they gate casual abuse
+and cost, not determined adversaries.
+
 ## 5. Errors
 
 | Condition                                  | Response                     |
 |--------------------------------------------|------------------------------|
-| Name outside the zone                      | NXDOMAIN (rcode 3)           |
+| Name outside all zones                     | NXDOMAIN (rcode 3)           |
+| Tokenized zone queried without its token   | REFUSED (rcode 5)            |
 | Rate limit exceeded for the client address | SERVFAIL (rcode 2)           |
 | In-flight LLM cap exhausted                | SERVFAIL (rcode 2), load shed |
 | Backend raised (upstream error)            | SERVFAIL (rcode 2)           |

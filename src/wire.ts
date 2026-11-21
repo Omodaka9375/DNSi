@@ -20,13 +20,22 @@ export const RCODE = {
   NOERROR: 0,
   SERVFAIL: 2,
   NXDOMAIN: 3,
+  REFUSED: 5,
 } as const;
+
+/** OPT record type (EDNS0). */
+export const RR_OPT = 41;
+
+/** Payload size we advertise in our OPT record (safe against fragmentation). */
+export const EDNS_PAYLOAD = 1232;
 
 export type QueryInfo = {
   id: number;
   qname: string;
   qtype: number;
   qclass: number;
+  /** Sender's EDNS0 UDP payload size, or null when no OPT was sent. */
+  ednsSize: number | null;
 };
 
 export type AnswerRecord =
@@ -102,7 +111,27 @@ export function parseQuery(buf: Buffer): QueryInfo | null {
   const qtype = buf.readUInt16BE(off);
   const qclass = buf.readUInt16BE(off + 2);
   const qname = name.name.replace(/\.$/, "");
-  return { id, qname, qtype, qclass };
+
+  // Scan remaining records (usually the additional section) for OPT to
+  // learn the sender's UDP payload size.
+  let ednsSize: number | null = null;
+  off = name.next + 4;
+  for (let guard = 0; guard < 16 && off + 11 <= buf.length; guard += 1) {
+    const n = decodeNameAt(buf, off);
+    if (!n) break;
+    let o = n.next;
+    if (o + 10 > buf.length) break;
+    const type = buf.readUInt16BE(o);
+    const cls = buf.readUInt16BE(o + 2);
+    const rdlen = buf.readUInt16BE(o + 8);
+    if (type === RR_OPT) {
+      ednsSize = cls;
+      break;
+    }
+    off = o + 10 + rdlen;
+  }
+
+  return { id, qname, qtype, qclass, ednsSize };
 }
 
 export function encodeResponse(
@@ -113,6 +142,7 @@ export function encodeResponse(
   answers: AnswerRecord[],
   rcode: number,
   tc = false,
+  ednsPayload: number | null = null,
 ): Buffer {
   // A truncated response carries no answers; the TC bit tells the client
   // to retry over TCP.
@@ -123,7 +153,8 @@ export function encodeResponse(
   header.writeUInt16BE(id & 0xffff, 0);
   header.writeUInt16BE(0x8000 | 0x0100 | 0x0080 | (tc ? FLAGS_TC : 0) | (rcode & 0x0f), 2);
   header.writeUInt16BE(1, 4); // QDCOUNT
-  header.writeUInt16BE(rrCount, 6); // ANCOUNT
+  header.writeUInt16BE(rrCount, 6); // ANCOUNT (the OPT pseudo-record is additional, not an answer)
+  header.writeUInt16BE(ednsPayload !== null ? 1 : 0, 10); // ARCOUNT
 
   const encodedQname = encodeName(qname);
   const qsecName = encodedQname ?? Buffer.from([0]);
@@ -161,7 +192,15 @@ export function encodeResponse(
     }
   }
 
-  return Buffer.concat([header, qsec, ...answerSections]);
+  const sections: Buffer[] = [header, qsec, ...answerSections];
+  if (ednsPayload !== null) {
+    // OPT pseudo-record: root name, type OPT, class = our payload size.
+    const opt = Buffer.alloc(11);
+    opt.writeUInt16BE(RR_OPT, 1);
+    opt.writeUInt16BE(ednsPayload & 0xffff, 3);
+    sections.push(opt);
+  }
+  return Buffer.concat(sections);
 }
 
 /**
