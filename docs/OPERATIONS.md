@@ -59,13 +59,11 @@ needs nothing and is safe for demos.
 - **No auth by design.** v0.1 is public knowledge. If you need private
   zones, the roadmap item is per-zone tokens encoded in the QNAME.
 
-## Known limitations (v0.1)
+## Known limitations (v0.2)
 
 - Questions max 200 bytes; no session/continuation for longer input.
-- One TXT record per answer; very long answers need EDNS0 resolvers or
-  TCP (use `--tcp`).
-- No A-record compact-answer mode yet, so pure `gethostbyname` devices
-  cannot consume TXT answers (see `AGENTS.md` section 2).
+- A-mode answers cap at 64 A records (256 answer bytes); longer answers
+  are cut at the cap.
 - No TLS layer (DoT/DoH fronting is a deployment concern, not built in).
 
 ## Verification

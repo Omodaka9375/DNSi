@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "start": "tsx src/index.ts",
     "ask": "tsx src/ask-cli.ts",
-    "test": "tsx --test test/name.test.ts test/e2e.test.ts",
+    "test": "tsx --test test/*.test.ts",
     "verify": "pnpm typecheck && pnpm test"
   },
   "bin": {

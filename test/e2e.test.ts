@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { EchoBackend, type Backend, type BackendAnswer } from "../src/backend.js";
 import { buildQuestionQname } from "../src/name.js";
 import { startServer } from "../src/server.js";
-import { queryTcp, queryUdp } from "../src/query.js";
+import { queryTcp, queryUdp, aRecordsToText, RR_A } from "../src/query.js";
 
 const ZONE = "dnsi.test";
 
@@ -14,6 +14,13 @@ class CountingBackend implements Backend {
   async ask(question: string): Promise<BackendAnswer> {
     this.calls += 1;
     return this.inner.ask(question);
+  }
+}
+
+class LongBackend implements Backend {
+  readonly name = "long";
+  async ask(question: string): Promise<BackendAnswer> {
+    return { text: (question + " ").repeat(40).trim(), related: [], canonical: false };
   }
 }
 
@@ -125,6 +132,55 @@ test("usage answer on bare zone", async () => {
     const res = await queryUdp(server.udpPort, `ask.${ZONE}`);
     assert.equal(res.rcode, 0);
     assert.ok(res.txt.includes("DNSI"));
+  } finally {
+    await server.stop();
+  }
+});
+
+test("A mode: gethostbyname emulation reassembles the answer text", async () => {
+  const server = await startServer({ zone: ZONE, udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+  try {
+    const qn = qnameFor("What is DNSI?");
+    const res = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, RR_A);
+    assert.equal(res.rcode, 0);
+    assert.ok(res.a.length >= 1);
+    assert.equal(res.txt, ""); // A mode carries no TXT
+    assert.equal(aRecordsToText(res.a), "DNSI (echo backend): What is DNSI?");
+    // tools work the same way for constrained devices
+    const hash = await queryUdp(server.udpPort, `tool.hash.hi.ask.${ZONE}`, "127.0.0.1", 5000, RR_A);
+    assert.equal(aRecordsToText(hash.a).length, 64);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("A and TXT answers are cached under separate keys", async () => {
+  const backend = new CountingBackend(new EchoBackend());
+  const server = await startServer({ zone: ZONE, udpPort: 0, tcpPort: 0, backend });
+  try {
+    const qn = qnameFor("cache split test");
+    await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, RR_A);
+    await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, RR_A);
+    await queryUdp(server.udpPort, qn);
+    await queryUdp(server.udpPort, qn);
+    assert.equal(backend.calls, 2); // one per qtype, both then cached
+  } finally {
+    await server.stop();
+  }
+});
+
+test("UDP answers over 512 bytes are truncated with TC; TCP is complete", async () => {
+  const server = await startServer({ zone: ZONE, udpPort: 0, tcpPort: 0, backend: new LongBackend() });
+  try {
+    const qn = qnameFor("explain quantum computing in detail please");
+    const udpRes = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000);
+    assert.equal(udpRes.tc, true);
+    assert.equal(udpRes.txt, "");
+    assert.equal(udpRes.rcode, 0);
+
+    const tcpRes = await queryTcp(server.tcpPort, qn, "127.0.0.1", 10000);
+    assert.equal(tcpRes.tc, false);
+    assert.ok(tcpRes.txt.length > 512);
   } finally {
     await server.stop();
   }

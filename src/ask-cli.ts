@@ -1,10 +1,11 @@
 import { buildQuestionQname } from "./name.js";
-import { queryTcp, queryUdp } from "./query.js";
+import { queryTcp, queryUdp, aRecordsToText, RR_A } from "./query.js";
 
-const args = process.argv.slice(2).filter((a) => a !== "--tcp");
+const args = process.argv.slice(2).filter((a) => a !== "--tcp" && a !== "--a");
+const useA = process.argv.includes("--a");
 const question = args.join(" ");
 if (question.length === 0) {
-  console.error('usage: pnpm ask -- "your question" [--tcp]');
+  console.error('usage: pnpm ask -- "your question" [--tcp] [--a]');
   process.exit(2);
 }
 
@@ -19,16 +20,20 @@ if (!qname) {
 }
 
 const res = process.argv.includes("--tcp")
-  ? await queryTcp(port, qname, host)
-  : await queryUdp(port, qname, host);
+  ? await queryTcp(port, qname, host, 10000, useA ? RR_A : undefined)
+  : await queryUdp(port, qname, host, 5000, useA ? RR_A : undefined);
 
 if (res.rcode !== 0) {
   console.error(`DNS error rcode=${res.rcode}`);
   process.exit(1);
 }
 
-console.log(res.txt);
-if (res.cnames.length > 0) {
-  console.log("\nrelated:");
-  for (const c of res.cnames) console.log(`  dig TXT ${c}`);
+if (useA) {
+  console.log(aRecordsToText(res.a));
+} else {
+  console.log(res.txt);
+  if (res.cnames.length > 0) {
+    console.log("\nrelated:");
+    for (const c of res.cnames) console.log(`  dig TXT ${c}`);
+  }
 }

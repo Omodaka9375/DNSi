@@ -9,6 +9,8 @@ import {
   parseQuery,
   RCODE,
   chunkUtf8,
+  RR_A,
+  UDP_MAX,
   type AnswerRecord,
   type QueryInfo,
 } from "./wire.js";
@@ -16,6 +18,9 @@ import type { Backend } from "./backend.js";
 
 const TTL_DYNAMIC = 60; // answers that can change (LLM output, time)
 const TTL_CANONICAL = 3600; // deterministic, cache-friendly answers
+
+/** A-mode cap: one IPv4 per 4 answer bytes (gethostbyname returns a list). */
+const MAX_A_RECORDS = 64;
 
 export type DnsiOptions = {
   zone: string;
@@ -31,6 +36,30 @@ export type ResolveResult = { records: AnswerRecord[]; rcode: number };
 
 function txtRecord(text: string, ttl: number): AnswerRecord {
   return { type: "TXT", strings: chunkUtf8(text), ttl };
+}
+
+/**
+ * Compact-answer mode: pack the answer bytes into A records, 4 bytes per
+ * address. Valid UTF-8 text never contains 0x00 or 0xFF, so octets stay
+ * clear of the two most-filtered single-address values. The final record
+ * is zero-padded; clients strip trailing NULs. A gethostbyname call
+ * receives all addresses in h_addr_list, in order.
+ */
+function answerToARecords(text: string, ttl: number): AnswerRecord[] {
+  const bytes = Buffer.from(text, "utf8").subarray(0, MAX_A_RECORDS * 4);
+  const addresses: Buffer[] = [];
+  for (let i = 0; i < bytes.length; i += 4) {
+    const addr = Buffer.alloc(4);
+    bytes.copy(addr, 0, i, Math.min(i + 4, bytes.length));
+    addresses.push(addr);
+  }
+  if (addresses.length === 0) addresses.push(Buffer.from([0, 0, 0, 0]));
+  return [{ type: "A", addresses, ttl }];
+}
+
+/** Cache key includes qtype: the same name answers TXT+CNAME or A differently. */
+function cacheKey(qtype: number, qname: string): string {
+  return `${qtype}:${qname}`;
 }
 
 export class Dnsi {
@@ -61,7 +90,7 @@ export class Dnsi {
     const parsed = parseDnsiQname(q.qname, this.opts.zone);
     if (!parsed) return { records: [], rcode: RCODE.NXDOMAIN };
 
-    const cached = this.cache.get(q.qname);
+    const cached = this.cache.get(cacheKey(q.qtype, q.qname));
     if (cached) return { records: cached, rcode: RCODE.NOERROR };
 
     switch (parsed.kind) {
@@ -77,13 +106,13 @@ export class Dnsi {
           rcode: RCODE.NOERROR,
         };
       case "tool":
-        return this.tool(parsed.tool, parsed.args, q.qname);
+        return this.tool(parsed.tool, parsed.args, q.qname, q.qtype);
       case "question":
-        return this.question(parsed.question, q.qname);
+        return this.question(parsed.question, q.qname, q.qtype);
     }
   }
 
-  private tool(tool: string, args: string, qname: string): ResolveResult {
+  private tool(tool: string, args: string, qname: string, qtype: number): ResolveResult {
     const result = runTool(tool, args);
     if (!result) {
       return {
@@ -92,12 +121,13 @@ export class Dnsi {
       };
     }
     const ttl = result.canonical ? TTL_CANONICAL : TTL_DYNAMIC;
-    const records: AnswerRecord[] = [txtRecord(result.text, ttl)];
-    if (result.canonical) this.cache.set(qname, records, TTL_CANONICAL);
+    const records: AnswerRecord[] =
+      qtype === RR_A ? answerToARecords(result.text, ttl) : [txtRecord(result.text, ttl)];
+    if (result.canonical) this.cache.set(cacheKey(qtype, qname), records, TTL_CANONICAL);
     return { records, rcode: RCODE.NOERROR };
   }
 
-  private async question(text: string, qname: string): Promise<ResolveResult> {
+  private async question(text: string, qname: string, qtype: number): Promise<ResolveResult> {
     if (this.inFlight >= this.maxInFlight) {
       return { records: [], rcode: RCODE.SERVFAIL }; // shed load instead of piling up
     }
@@ -112,13 +142,25 @@ export class Dnsi {
     }
 
     const ttl = answer.canonical ? TTL_CANONICAL : TTL_DYNAMIC;
-    const records: AnswerRecord[] = [txtRecord(answer.text, ttl)];
-    for (const rel of answer.related.slice(0, 3)) {
-      const target = buildQuestionQname(rel, this.opts.zone);
-      if (target) records.push({ type: "CNAME", target, ttl: TTL_DYNAMIC });
+    let records: AnswerRecord[];
+    if (qtype === RR_A) {
+      // A mode cannot carry the graph; the answer text is the payload.
+      records = answerToARecords(answer.text, ttl);
+    } else {
+      records = [txtRecord(answer.text, ttl)];
+      for (const rel of answer.related.slice(0, 3)) {
+        const target = buildQuestionQname(rel, this.opts.zone);
+        if (target) records.push({ type: "CNAME", target, ttl: TTL_DYNAMIC });
+      }
     }
-    this.cache.set(qname, records, ttl);
+    this.cache.set(cacheKey(qtype, qname), records, ttl);
     return { records, rcode: RCODE.NOERROR };
+  }
+  /** Header-only TC response for a query whose UDP answer would not fit. */
+  truncatedResponse(msg: Buffer): Buffer | null {
+    const q = parseQuery(msg);
+    if (!q) return null;
+    return encodeResponse(q.id, q.qname, q.qtype, q.qclass, [], RCODE.NOERROR, true);
   }
 }
 
@@ -171,7 +213,12 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
     udp = dgram.createSocket("udp4");
     udp.on("message", (msg, rinfo) => {
       void dnsi.handleQuery(msg, rinfo.address).then((resp) => {
-        if (resp) udp?.send(resp, rinfo.port, rinfo.address);
+        if (!resp) return;
+        // Classic UDP: a response over 512 bytes is truncated to header-only
+        // with TC set, so resolvers retry over TCP instead of losing the tail
+        // to middleboxes.
+        const out = resp.length > UDP_MAX ? dnsi.truncatedResponse(msg) : resp;
+        if (out) udp?.send(out, rinfo.port, rinfo.address);
       });
     });
     udp.on("error", () => {}); // never crash on a bad datagram

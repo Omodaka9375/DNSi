@@ -5,9 +5,16 @@
  * emitted (legal and simpler); compression pointers are followed when reading.
  */
 
-export const RR_TXT = 16;
+export const RR_A = 1;
 export const RR_CNAME = 5;
+export const RR_TXT = 16;
 export const CLASS_IN = 1;
+
+/** Flag in the response header: answer too large for UDP, retry over TCP. */
+export const FLAGS_TC = 0x0200;
+
+/** Classic UDP DNS payload limit (no EDNS0). */
+export const UDP_MAX = 512;
 
 export const RCODE = {
   NOERROR: 0,
@@ -24,7 +31,8 @@ export type QueryInfo = {
 
 export type AnswerRecord =
   | { type: "TXT"; strings: Buffer[]; ttl: number }
-  | { type: "CNAME"; target: string; ttl: number };
+  | { type: "CNAME"; target: string; ttl: number }
+  | { type: "A"; addresses: Buffer[]; ttl: number };
 
 function u16(v: number): Buffer {
   const b = Buffer.alloc(2);
@@ -104,20 +112,30 @@ export function encodeResponse(
   qclass: number,
   answers: AnswerRecord[],
   rcode: number,
+  tc = false,
 ): Buffer {
+  // A truncated response carries no answers; the TC bit tells the client
+  // to retry over TCP.
+  const emitted = tc ? [] : answers;
+  // ANCOUNT counts wire RRs: one A answer expands to one RR per address.
+  const rrCount = emitted.reduce((n, a) => n + (a.type === "A" ? a.addresses.length : 1), 0);
   const header = Buffer.alloc(12);
   header.writeUInt16BE(id & 0xffff, 0);
-  header.writeUInt16BE(0x8000 | 0x0100 | 0x0080 | (rcode & 0x0f), 2); // QR | RD | RA | rcode
+  header.writeUInt16BE(0x8000 | 0x0100 | 0x0080 | (tc ? FLAGS_TC : 0) | (rcode & 0x0f), 2);
   header.writeUInt16BE(1, 4); // QDCOUNT
-  header.writeUInt16BE(answers.length, 6); // ANCOUNT
+  header.writeUInt16BE(rrCount, 6); // ANCOUNT
 
   const encodedQname = encodeName(qname);
   const qsecName = encodedQname ?? Buffer.from([0]);
   const qsec = Buffer.concat([qsecName, u16(qtype), u16(qclass)]);
 
   const answerSections: Buffer[] = [];
-  for (const a of answers) {
-    const owner = encodedQname ?? Buffer.from([0]);
+  // Owner name = compression pointer to the question at offset 12. Without
+  // this, every A-mode record repeats the full QNAME and responses balloon
+  // past the 512-byte UDP limit.
+  const ownerPtr = Buffer.from([0xc0, 0x0c]);
+  for (const a of emitted) {
+    const owner = ownerPtr;
     if (a.type === "TXT") {
       const strings: Buffer[] = [];
       for (const s of a.strings) {
@@ -129,6 +147,12 @@ export function encodeResponse(
       answerSections.push(
         Buffer.concat([owner, u16(RR_TXT), u16(CLASS_IN), u32(a.ttl), u16(rdata.length), rdata]),
       );
+    } else if (a.type === "A") {
+      for (const addr of a.addresses) {
+        answerSections.push(
+          Buffer.concat([owner, u16(RR_A), u16(CLASS_IN), u32(a.ttl), u16(4), addr.subarray(0, 4)]),
+        );
+      }
     } else {
       const rdata = encodeName(a.target) ?? Buffer.from([0]);
       answerSections.push(
@@ -166,8 +190,10 @@ export function chunkUtf8(text: string, max = 255): Buffer[] {
 export type ParsedResponse = {
   id: number;
   rcode: number;
+  tc: boolean;
   txt: string[];
   cnames: string[];
+  a: string[];
 };
 
 export function parseResponse(buf: Buffer): ParsedResponse | null {
@@ -175,6 +201,7 @@ export function parseResponse(buf: Buffer): ParsedResponse | null {
   const id = buf.readUInt16BE(0);
   const flags = buf.readUInt16BE(2);
   const rcode = flags & 0x0f;
+  const tc = (flags & FLAGS_TC) !== 0;
   const ancount = buf.readUInt16BE(6);
   const qdcount = buf.readUInt16BE(4);
   let off = 12;
@@ -185,6 +212,7 @@ export function parseResponse(buf: Buffer): ParsedResponse | null {
   }
   const txt: string[] = [];
   const cnames: string[] = [];
+  const a: string[] = [];
   for (let i = 0; i < ancount; i += 1) {
     const n = decodeNameAt(buf, off);
     if (!n) return null;
@@ -207,7 +235,9 @@ export function parseResponse(buf: Buffer): ParsedResponse | null {
     } else if (type === RR_CNAME) {
       const target = decodeNameAt(rdata, 0);
       if (target) cnames.push(target.name);
+    } else if (type === RR_A && rdlen === 4) {
+      a.push(rdata.join("."));
     }
   }
-  return { id, rcode, txt, cnames };
+  return { id, rcode, tc, txt, cnames, a };
 }

@@ -21,6 +21,11 @@ a question is a hostname and an answer is a DNS record.
   addressable: a question is a domain name you can cache, delegate, resolve.
 - **Tool calls.** `tool.time.ask.dnsi.test`, `tool.hash.<input>.ask...`
   (`time`, `echo`, `uuid`, `hash`). Deterministic results are canonical.
+- **gethostbyname mode.** An A query returns the answer packed into A
+  records (4 bytes per address) - a pure `gethostbyname` device reads the
+  answer from `h_addr_list`. `pnpm ask -- "q" --a` uses it.
+- **512-byte safety.** UDP answers that would not fit are returned
+  TC=1 (retry over TCP); TCP is always complete.
 - **TTLs.** 60 for dynamic answers (LLM output, time), 3600 for canonical
   (deterministic tool results). Answers get served free from cache forever
   after the first resolution.

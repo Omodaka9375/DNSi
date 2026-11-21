@@ -1,6 +1,6 @@
 # DNSI Protocol Specification
 
-Version 0.1. This document describes the wire contract implemented by
+Version 0.2. This document describes the wire contract implemented by
 `src/wire.ts` and `src/name.ts`. It is the reference for building DNSI
 clients and for writing the public docs.
 
@@ -59,7 +59,33 @@ another encoded question in the same zone. These names are themselves
 resolvable: the graph is addressable, cacheable, and delegatable. A
 client follows a CNAME by issuing a new TXT query for that name.
 
-### 3.3 TTL policy
+### 3.3 A-record compact-answer mode (gethostbyname devices)
+
+A query with qtype A (type 1) for a question or tool name returns the
+answer packed into **A records, 4 bytes per address, in order**. A
+device that can only call `gethostbyname` receives the whole answer in
+`h_addr_list`: concatenate the 4-byte addresses, strip trailing NUL
+padding, decode UTF-8. Cap: 64 A records per answer (256 answer bytes).
+
+- Valid UTF-8 text never contains 0x00 or 0xFF, so octets stay clear of
+  the most-filtered address values.
+- A-mode answers carry no CNAME graph and no TXT; the answer text is the
+  entire payload.
+- A-mode and TXT answers are cached under separate keys.
+
+```c
+/* gethostbyname-only device, complete client */
+struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
+/* h->h_addr_list = 4-byte chunks of the UTF-8 answer */
+```
+
+### 3.4 Truncation
+
+Classic UDP responses over 512 bytes are replaced by a header-only
+response with TC=1 (rcode NOERROR, zero answers). Clients and resolvers
+retry over TCP. TCP responses are never truncated.
+
+### 3.5 TTL policy
 
 | Answer kind                                      | TTL   |
 |--------------------------------------------------|-------|
@@ -83,9 +109,12 @@ tool.<name>.<args-encoded>.ask.<zone>
 | `uuid` | -         | random UUID v4                | yes       |
 | `hash` | text      | SHA-256 of the args, hex      | yes       |
 
-Unknown tools answer with a TXT error message listing available tools
-(rcode NOERROR, so the client sees the hint). `args` are encoded with the
-same rules as questions (a literal `-` in args encodes as `%2D`).
+Tools answer TXT by default; an A query (qtype 1) returns the tool
+output as A records, so `gethostbyname("tool.time.ask.dnsi.test")`
+returns the timestamp bytes. Unknown tools answer with a TXT error
+message listing available tools (rcode NOERROR, so the client sees the
+hint). `args` are encoded with the same rules as questions (a literal
+`-` in args encodes as `%2D`).
 
 ## 5. Errors
 
@@ -108,14 +137,17 @@ same rules as questions (a literal `-` in args encodes as `%2D`).
 - No name compression is emitted. Compression pointers are followed when
   reading.
 
-## 7. Limits (v0.1)
+## 7. Limits (v0.2)
 
 - Question: 200 UTF-8 bytes max. There is no session/continuation
   mechanism for longer questions.
-- Answer: one TXT record; long answers exceed classic 512-byte UDP
-  responses and need EDNS0-capable resolvers or TCP. Use TCP for long
-  answers.
+- A-mode answers: 64 A records = 256 answer bytes; longer answers are
+  silently cut at the cap (the client sees truncated text).
+- Long TXT answers exceed classic 512-byte UDP; DNSI sets TC and clients
+  retry over TCP, or resolvers use EDNS0.
 - Answers are unencrypted plaintext: DNSI carries no secrets, ever.
+- Answer owner names use a compression pointer (offset 12); CNAME rdata
+  targets are uncompressed. Compression pointers are followed when read.
 
 ## 8. Reference transcript (echo backend)
 

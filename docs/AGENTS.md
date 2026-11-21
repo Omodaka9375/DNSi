@@ -34,18 +34,16 @@ zero per-user logging. The alternative is fighting tunnels.
 ## 2. gethostbyname-only devices
 
 Legacy firmware, PLCs, printers, set-top boxes: code that cannot link an
-HTTP client but has shipped `gethostbyname` since 1983. The honest
-status in v0.1:
+HTTP client but has shipped `gethostbyname` since 1983. This is now a
+first-class mode: **A-record compact answers** (PROTOCOL.md 3.3). A
+`gethostbyname` call returns the answer packed into `h_addr_list`, four
+answer bytes per address, in order - concatenate, strip trailing NULs,
+decode UTF-8. Tools work the same way
+(`gethostbyname("tool.time.ask.dnsi.test")` returns the timestamp), so a
+constrained device gets a clock, an RNG and a hash without a crypto lib.
 
-- Devices that can issue TXT queries (any real resolver library,
-  BusyBox `nslookup`, `dig`) get full question and tool access.
-- Devices that can only do `gethostbyname` (A records, IP answer only)
-  need the A-record compact-answer mode. That is the top roadmap item;
-  it is not implemented yet. Do not promise it to those devices today.
-
-The tool surface is the immediate win for embedded: `tool.time`,
-`tool.hash`, and `tool.uuid` let constrained devices get canonical,
-cacheable answers without a clock, a crypto lib, or an RNG.
+The complete C client is three lines. The A-mode cap is 256 answer
+bytes per query; ask follow-up questions for more.
 
 ## 3. Hostile and captive networks
 
@@ -88,7 +86,10 @@ dig TXT what-is-dnsi.ask.dnsi.test @server   ; follow the graph
 4. Follow CNAMEs for related questions.
 5. Honor TTLs: 60 dynamic, 3600 canonical. Cache aggressively; that is
    the design.
-6. Never send secrets: DNS is plaintext.
+6. On classic UDP, a TC=1 response means "retry over TCP" (PROTOCOL.md
+   3.4). The reference client does this for you via `queryTcp`.
+7. Never send secrets: DNS is plaintext.
 
 A TypeScript reference client ships in `src/query.ts`
-(`queryUdp` / `queryTcp`); the CLI is `pnpm ask -- "question" [--tcp]`.
+(`queryUdp` / `queryTcp`, plus `aRecordsToText` for the A mode); the CLI
+is `pnpm ask -- "question" [--tcp] [--a]`.

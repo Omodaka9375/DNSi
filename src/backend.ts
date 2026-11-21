@@ -77,11 +77,12 @@ export class OpenAICompatBackend implements Backend {
     private readonly baseUrl: string,
     private readonly apiKey: string,
     private readonly model: string,
+    private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
   async ask(question: string): Promise<BackendAnswer> {
     const url = `${this.baseUrl.replace(/\/+$/, "")}/chat/completions`;
-    const res = await fetch(url, {
+    const res = await this.fetchImpl(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
