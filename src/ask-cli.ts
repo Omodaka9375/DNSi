@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { buildQuestionQname, buildSessionQname, chunkQuestion } from "./name.js";
 import { queryTcp, queryUdp, aRecordsToText, RR_A, type DnsiResponse } from "./query.js";

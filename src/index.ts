@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { selectBackend } from "./backend.js";
 import { startServer } from "./server.js";
 import type { ZoneConfig } from "./name.js";
