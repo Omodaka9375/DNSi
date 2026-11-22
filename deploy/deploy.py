@@ -52,15 +52,18 @@ def run(ssh, cmd, check=True, timeout=600):
 
 
 def main():
+    global HOST, USER
     password = os.environ.get("HOSTINGER_TOKEN")
     if not password:
         print("set HOSTINGER_TOKEN (or your ssh password env var) first")
         sys.exit(2)
     if len(sys.argv) > 1:
-        USER, _, HOST = sys.argv[1].partition("@") + ("", "")[: 2 - len(sys.argv[1].partition("@"))]
-        if not HOST:
-            HOST = USER
-            USER = "root"
+        user, _, host = sys.argv[1].partition("@")
+        if not host:
+            HOST = user
+        else:
+            HOST = host
+            USER = user
 
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

@@ -48,6 +48,18 @@ const rateLimit = parseRateLimit(process.env);
 const stats = process.env.DNSI_STATS === "1";
 const statsFile = process.env.DNSI_STATS_FILE;
 
+// Optional DoH front (RFC 8484): DNSI_DOH_PORT, with optional TLS certs.
+// Both fronts read the SAME PEM files; paths are env, contents are passed.
+const certPath = process.env.DNSI_TLS_CERT;
+const keyPath = process.env.DNSI_TLS_KEY;
+let certPem: string | undefined;
+let keyPem: string | undefined;
+if (certPath && keyPath) {
+  const { readFileSync } = await import("node:fs");
+  certPem = readFileSync(certPath, "utf8");
+  keyPem = readFileSync(keyPath, "utf8");
+}
+
 const server = await startServer({
   zones,
   udpPort: port,
@@ -58,8 +70,8 @@ const server = await startServer({
   stats,
   statsFile,
   dotPort: Number(process.env.DNSI_DOT_PORT ?? 0) || undefined,
-  tlsCert: process.env.DNSI_TLS_CERT,
-  tlsKey: process.env.DNSI_TLS_KEY,
+  tlsCert: certPem,
+  tlsKey: keyPem,
 });
 
 // Optional DoH front (RFC 8484): DNSI_DOH_PORT, with optional TLS certs.
@@ -67,13 +79,10 @@ const dohPort = Number(process.env.DNSI_DOH_PORT ?? 0);
 let dohPort_ = 0;
 let dohServer: Awaited<ReturnType<typeof startDoh>> | null = null;
 if (Number.isInteger(dohPort) && dohPort > 0) {
-  const { readFileSync } = await import("node:fs");
-  const certPath = process.env.DNSI_TLS_CERT;
-  const keyPath = process.env.DNSI_TLS_KEY;
   dohServer = await startDoh(server.dnsi, {
     port: dohPort,
-    tlsCert: certPath && keyPath ? readFileSync(certPath, "utf8") : undefined,
-    tlsKey: certPath && keyPath ? readFileSync(keyPath, "utf8") : undefined,
+    tlsCert: certPem,
+    tlsKey: keyPem,
   });
   dohPort_ = dohServer.port;
 }
