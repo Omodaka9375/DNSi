@@ -96,28 +96,32 @@ for an hour.
 ## Threat model
 
 - **DNS tunneling stigma.** Security teams will flag a DNS Q&A service.
-  The answer is the posture: TCP-only, rate-limited, load-shed, zero
-  logging, read-only knowledge, no secrets over plaintext DNS. It is the
-  sanctioned version of a channel that exists anyway.
+  The answer is the posture: TCP-only, rate-limited, load-shed, no per-user
+  logs in this process, read-only knowledge, and no secrets over plaintext DNS.
+  Deployment still requires explicit authorization from the network operator.
 - **Abuse / cost.** UDP source addresses are spoofable, so per-IP limits
   are best-effort. For strict accounting, front DNSi with a resolver
   (Unbound/Bind) that applies your own policy.
-- **No auth by design.** The default is public knowledge. Private zones
-  are handled by per-zone tokens (see PROTOCOL.md 4.6): a wrong or
-  missing token is refused. Tokens gate abuse and cost, they do not
-  survive an on-path observer. For real confidentiality, front with
-  DoT/DoH (DNS-over-TLS/HTTPS).
+- **Public by default.** Token-protected zones are supported (see
+  PROTOCOL.md 4.6): a wrong or missing token is refused. Tokens gate abuse
+  and cost, but are visible in query names and provide no confidentiality.
+  DoT/DoH can protect a compatible client's connection to DNSi. They do not
+  encrypt a legacy device's separate path to its recursive resolver, and
+  upstream resolvers may still observe or log names.
 
-## Known limitations (v0.3)
+## Known limitations (v0.4)
 
 - Direct questions max 200 bytes; session mode raises this to ~1000
   bytes (32 chunks, 10-minute expiry, answers not cached).
 - A-mode answers cap at 64 A records (256 answer bytes); longer answers
   are cut at the cap.
-- Zone tokens travel as DNS labels: they rate-limit abuse and cost, they
-  do not survive an on-path observer. For real confidentiality, front
-  with DoT/DoH.
-- No TLS layer (DoT/DoH fronting is a deployment concern, not built in).
+- Zone tokens travel as DNS labels: they limit access and cost, but do not
+  provide confidentiality. DoT/DoH are built in, require PEM cert/key files,
+  and protect only the compatible client-to-DNSi connection.
+- The DNSi process does not log per-user queries. Recursive resolvers and
+  network operators may still observe or log them.
+- DNS-provided time and UUIDs are unauthenticated utilities. Do not use them
+  for trusted time, secret generation, or other security decisions.
 
 ## CLI reference
 
@@ -149,6 +153,6 @@ sessions automatically; network failures print one clean line with an
 ## Verification
 
 ```bash
-pnpm verify   # typecheck + 54 tests (codec, wire, backends, e2e over UDP+TCP)
+pnpm verify   # typecheck + 67 tests (codec, wire, backends, transports, e2e)
 pnpm build    # emit dist/
 ```

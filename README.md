@@ -4,19 +4,20 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-green)](package.json)
 
-**Access LLMs from any device, on any network, using nothing but DNS.**
+**Internal knowledge and small utilities for devices that can resolve DNS.**
 
-No app. No login. No HTTP. Every computer, router, printer and embedded
-controller on earth can look up a domain name. DNSi turns that lookup into a
-question, and the answer comes back as the reply.
+No custom DNSi client. No HTTP application client on the device. DNSi turns a
+standard name lookup into a question and returns a short answer. Serve prepared
+runbooks and deterministic tools, or optionally connect an OpenAI-compatible
+model on your own server. Compatible DNS resolution is required.
 
 ```bash
 npm install -g @omodaka/dnsi
-dnsi-ask --tool time
-# 2026-11-22T10:23:15.832Z
+dnsi-ask "what is dnsi"
+# prepared answer from the public demo: no AI involved
 
-dnsi-ask "how do I split a git commit"
-# answer comes back, plus related questions worth asking next
+dnsi-ask --tool time
+# current server UTC time; useful, but not authenticated
 ```
 
 **Jump to:** [Why it exists](#why-it-exists) ·
@@ -26,23 +27,24 @@ dnsi-ask "how do I split a git commit"
 
 ## Why it exists
 
-Some networks block everything except DNS: hotel wifi, airplanes, locked-down
-offices. Some devices cannot run apps at all: sensors, PLCs, 20 year old
-firmware. All of them can look up a name. DNSi is the question box that works
-in exactly those places, because it is nothing but a name lookup.
+Some devices cannot reasonably add an HTTPS application client: sensors, PLCs,
+and old firmware. Some networks allow only tightly controlled name resolution.
+Where compatible DNS is permitted, DNSi can deliver short internal instructions
+and utility results through infrastructure the device already has.
 
-## What people use it for
+## What it is for
 
-- **Terminal Q&A.** One command instead of opening a browser.
-- **Blocked networks.** The one lane every network leaves open.
-- **Dumb devices.** A `gethostbyname` call returns the answer text. Also gives
-  constrained devices a clock, a UUID and a hash without any libraries
-  (`tool.time`, `tool.uuid`, `tool.hash`).
-- **Team knowledge.** Run one on the office network. "how-do-i-connect-to-the-vpn"
-  becomes a name every employee can look up. IT writes it once, everyone asks
-  by typing, and repeated questions are served from cache for free.
-- **AI agents.** Sandboxed agents that may only resolve DNS get a sanctioned
-  question and tool channel, rate limited and log-free.
+- **Constrained devices.** A `gethostbyname` call returns short answer text.
+  Serve maintenance instructions, prepared knowledge, or utility results
+  without adding an HTTP application client.
+- **Internal knowledge.** Run one on your network with non-confidential
+  runbooks. Write an answer once; repeated questions can be served from cache.
+- **Small tools.** `tool.time`, `tool.uuid`, `tool.hash`, and `tool.echo`
+  answer without an AI. DNS-provided time and identifiers are unauthenticated,
+  not trusted security primitives.
+- **Terminal experiments.** The included CLI makes the protocol easy to try.
+- **Controlled agent research.** Use DNS access only where it is explicitly
+  allowed. DNSi does not make an unauthorized channel authorized.
 
 ## How is this different
 
@@ -53,19 +55,19 @@ instead of a demo:
   `hash` - answer locally in microseconds and never touch the AI. From any
   language: `gethostbyname("tool.time.ask.dnsi.dev")` or
   `dig +short TXT tool.hash.hello.ask.dnsi.dev`.
-- **Dumb devices first.** A plain `gethostbyname` call returns the answer
-  text. No TXT parsing, no special client.
-- **A knowledge graph.** Every answer carries related questions as resolvable
-  names, so clients and resolvers can walk from one question to the next.
+- **Constrained devices first.** A plain `gethostbyname` call returns answer
+  text. No TXT parsing or custom DNSi client.
+- **Follow-up questions.** TXT answers can include related questions as
+  resolvable names, so a client can request another prepared answer.
 - **Deployable engineering.** Long questions ride in sessions, large answers
-  negotiate EDNS, private zones use tokens, and the whole thing is 35 kB with
-  zero runtime dependencies.
+  negotiate EDNS, token-protected zones limit access, and the package has zero
+  runtime dependencies.
 
 ## Three ways to run it
 
 | Mode | Who can ask | Use it for | Cost |
 |---|---|---|---|
-| Your machine (loopback) | only you | personal terminal Q&A, trying it out | free |
+| Your machine (loopback) | only you | protocol experiments, trying it out | free |
 | Your LAN | everyone on the network | team knowledge, device fleet | free + LLM tokens |
 | The internet | anyone, or token holders | public utility, paid service | ~$5 VPS + LLM tokens |
 
@@ -86,7 +88,7 @@ dnsi-ask "what is dnsi"
 
 ```bash
 dnsi-ask --tool time          # current UTC time
-dnsi-ask --tool uuid          # fresh random UUID
+dnsi-ask --tool uuid          # fresh UUID; use as an identifier, not a secret
 dnsi-ask --tool echo hi       # repeats your text
 dnsi-ask --tool hash hello    # sha256("hello")
 # every tool also answers over plain dig: dig +short TXT tool.time.ask.dnsi.dev
@@ -132,9 +134,12 @@ DNSI_LLM_BASE_URL=https://api.openai.com/v1 DNSI_LLM_API_KEY=sk-... pnpm start
 ## Is this a hack?
 
 It is a deliberate repurposing of the oldest question-answering machine on
-the internet, built with the safeguards security teams expect: rate limits,
-load shedding, zero per-user logging, and an option to answer over TCP only.
-Questions and answers are plain text, so do not send passwords through it.
+the internet, built with rate limits, load shedding, no per-user logs in the
+DNSi process, and an option to answer over TCP only. Recursive resolvers and
+network operators may still log queries. Ordinary resolver lookups are
+plaintext, so do not send passwords or confidential knowledge through them.
+Tokens limit access and cost; they do not provide confidentiality. DoT/DoH to
+DNSi does not encrypt a legacy device's separate path to its resolver.
 
 ## Install
 
@@ -164,6 +169,6 @@ checklist (zone delegation, TLS for DoT/DoH, counters).
 ## Development
 
 ```bash
-pnpm verify      # typecheck + 66 tests
+pnpm verify      # typecheck + 67 tests
 pnpm build       # emit dist/
 ```

@@ -6,7 +6,7 @@
   "engines": {
     "node": ">=22"
   },
-  "description": "DNSi: Ask an AI a question from any device, on any network, using nothing but DNS.",
+  "description": "DNSi: Internal knowledge, optional AI, and small utilities through standard DNS lookups.",
   "license": "Apache-2.0",
   "homepage": "https://dnsi.dev",
   "repository": {

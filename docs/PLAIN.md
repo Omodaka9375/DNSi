@@ -2,122 +2,123 @@
 
 ## What is this?
 
-You know directory assistance? You dial a number, say a name, and a person
-tells you the answer.
+DNS normally answers one question: "what address belongs to this name?" DNSi
+uses that same lookup to return a short instruction, a prepared answer, or a
+small utility result.
 
-The internet has had a directory assistance service since 1983. It is called
-DNS. Every phone, laptop, router, fridge and industrial robot on earth can
-call it, no app required. But it only knows one kind of answer: "what number
-is this name?"
-
-DNSi teaches that old service a new trick. Now you can dial it and ask
-anything, and an AI answers.
+The main use is a machine that already has a DNS resolver but cannot reasonably
+add an HTTPS application client: old firmware, a controller, or a small network
+device. It needs no custom DNSi client. Your DNSi server supplies the knowledge;
+AI is optional.
 
 ```text
-you:    ask "why is the sky blue"        (as a weird-looking website name)
-dnsi:   "Because air scatters blue light more than red..."   (as a text answer)
+device: look up "how-do-i-restart-this-service" as a DNS name
+dnsi:   "Run systemctl restart example, then check systemctl status example."
 ```
 
-The fastest way to feel it:
+The fastest way to try the public demo:
 
 ```bash
 npm install -g @omodaka/dnsi
 dnsi-ask "what is dnsi"
 ```
 
-Built-in tools answer instantly, with no AI involved (a clock, a UUID
-generator, a hash, an echo):
+**That public demo serves prepared answers about DNSi. It does not use AI.**
+Unknown questions receive a message explaining the demo. Its four built-in
+utilities do perform real work:
 
 ```bash
-dnsi-ask --tool time       # current UTC time
-dnsi-ask --tool uuid       # fresh random UUID
+dnsi-ask --tool time       # server UTC time; not authenticated
+dnsi-ask --tool uuid       # an identifier, not a secret or security token
 dnsi-ask --tool echo hi    # repeats your text
-dnsi-ask --tool hash hello # sha256("hello")
+dnsi-ask --tool hash hello # SHA-256 of your text
 ```
 
-Run your own in one minute, no account, no API key:
+Run your own server with no account or API key:
 
 ```bash
-pnpm install && pnpm start     # window 1
-pnpm ask -- "what is dnsi" --local   # window 2
+dnsi-server                         # window 1: local demo server
+dnsi-ask "what is dnsi" --local    # window 2
 ```
 
-That is the whole idea. No app to install. No account. No website to open.
-If your device can look up a domain name, it can ask an AI a question.
+From a source checkout, use `pnpm install && pnpm start`, then
+`pnpm ask -- "what is dnsi" --local`.
 
 ## When would I actually use this?
 
-**1. The network is blocking you.**
-Hotel wifi, airplane wifi, office networks, whole countries. They block
-apps and websites. They almost never block DNS, because the internet
-stops working without it. DNSi rides that one open lane.
+**1. A device has a resolver but no suitable application client.**
 
-**2. You live in a terminal.**
-You are already in a shell. Opening a browser, logging into a chat site,
-waiting for the page - that is five steps. This is one:
+A printer, sensor, or old controller may need one short maintenance instruction
+or a service status. DNSi can serve that answer without adding an HTTP client,
+JSON parser, or custom protocol client to the device.
 
-```bash
-pnpm ask -- "how do I find large files on linux"
-```
+A compact A-record mode also returns answer bytes through `gethostbyname` for
+software that cannot request TXT records.
 
-**3. You have a dumb device.**
-A printer, a sensor, a 20-year-old industrial controller. It cannot run
-apps. It can only look up names. It can now ask "what time is it",
-"what is the hash of this", or a real question.
+**2. You want a small internal knowledge service.**
 
-**4. You want one place your whole team can ask.**
-Your company runs its own DNSi. Now "how do I connect to the vpn" is a
-name anyone inside the network can look up. IT writes the answer once.
-Everyone asks by typing. No wiki, no ticket queue, no intranet.
+Run DNSi on your own network and serve prepared, non-confidential runbooks.
+An instruction becomes a name another machine can resolve. You control the
+answers, and repeated requests can use the cache.
 
-## Okay, but is it a hack?
+**3. You want a tiny utility over DNS.**
 
-It is a *repurposing*, and it is deliberate.
+The server can return a hash, echo text, generate a UUID, or report its current
+UTC time. These are demonstrations and convenience utilities, not trusted
+security services. Ordinary DNS can be observed or altered, so do not use its
+time as authoritative or its UUIDs as secrets.
 
-DNS was built to carry questions and answers. DNSi just points it at a
-machine that can actually answer. That said, we are not pretending it is
-normal: using DNS this way surprises security people, so DNSi is built
-with the safety features they would demand anyway - rate limits, no
-logging of who asked, and an option to only accept the most careful
-connection type. It is the polite version of a technique that already
-exists, done on purpose instead of by attackers.
+**4. You are experimenting in a terminal.**
 
-Two honest limits:
-- The questions and answers travel in plain text. Do not send passwords.
-- A single question is short (about 200 characters). Longer questions are
-  split into pieces automatically; you will not notice, but it is not
-  made for pasting whole documents.
+The included CLI makes the protocol easy to try. This is useful, but ordinary
+terminal AI clients already exist; constrained devices are the reason DNSi is
+different.
 
-## Try it in one minute
+## What about restricted networks and agents?
 
-```bash
-pnpm install
-pnpm start                 # window 1: your own question box
+DNSi works only where compatible DNS resolution is available. Networks may
+restrict resolver destinations, names, or record types. It is not a promise of
+connectivity on every network, and it does not make bypassing network policy
+acceptable.
 
-pnpm ask -- "what is dnsi" # window 2: ask it anything
-pnpm ask --tool time       # ...or use a built-in tool
-```
+For agents, use DNSi only when that DNS channel is explicitly allowed and
+controlled. The DNSi process writes no per-user query logs, but recursive
+resolvers, network operators, and surrounding infrastructure may log queries.
 
-Works with normal tools too:
+## What privacy and security do I get?
+
+- Ordinary resolver lookups are plaintext. Do not send passwords or
+  confidential internal knowledge.
+- A token-protected zone limits access and cost. Its token appears in the DNS
+  name and does not provide confidentiality.
+- DNSi supports DoT and DoH between a compatible client and the DNSi server.
+  That does not encrypt a legacy device's separate path to its normal resolver.
+- Time and UUIDs delivered over ordinary DNS are unauthenticated. Do not use
+  them for security decisions.
+- Questions are short. Longer ones are split into parts automatically, but this
+  is not a document-transfer protocol.
+
+## Try it with normal DNS tools
 
 ```bash
 dig +short TXT what-is-dnsi.ask.dnsi.test @127.0.0.1 -p 5353
+dig +short TXT tool.time.ask.dnsi.test @127.0.0.1 -p 5353
 ```
 
-And when you want real AI answers instead of the built-in demo mode, point
-it at any AI provider:
+For real AI answers on your own server, point it at an OpenAI-compatible
+provider. PowerShell example:
 
-```bash
-DNSI_LLM_BASE_URL=https://api.openai.com/v1 \
-DNSI_LLM_API_KEY=sk-... \
+```powershell
+$env:DNSI_LLM_BASE_URL = "https://api.openai.com/v1"
+$env:DNSI_LLM_API_KEY = "your-key"
 pnpm start
 ```
 
 ## The one-sentence pitch
 
-For people stuck on locked-down networks or tiny devices who cannot open a
-browser or install an app, DNSi is a question box that works anywhere the
-internet's phone book works, unlike chat apps that need ports, accounts
-and installs.
+For embedded and infrastructure developers who need short answers on machines
+that cannot make HTTPS requests, DNSi is a resolver-only knowledge gateway that
+delivers internal documentation and utilities through standard DNS, unlike chat
+applications and HTTP-based agent frameworks.
 
-**Tagline:** Ask anything, anywhere. No app.
+**Tagline:** AI and internal knowledge for devices that only speak DNS.

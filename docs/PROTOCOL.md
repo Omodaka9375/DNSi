@@ -14,11 +14,11 @@ clients and for writing the public docs.
 |---|---|
 | QNAME | the domain name being queried; DNSi puts the question in it |
 | TXT | a DNS record type that carries text; DNSi puts the answer in it |
-| CNAME | a pointer to another name; DNSi uses it for related questions |
+| CNAME | a pointer to another name; earlier DNSi versions used it incorrectly for related questions, current versions do not emit it |
 | A record | a DNS record holding an IPv4 address; DNSi packs answer bytes into these |
 | TTL | seconds a resolver may cache the answer (DNSi: 60 or 3600) |
 | zone | the domain suffix this server is responsible for, e.g. `dnsi.test` |
-| token | a secret label embedded in the name, required by private zones |
+| token | an access-control label embedded in the name; visible on the wire and not confidential |
 | SERVFAIL / REFUSED / NXDOMAIN | DNS error codes: server failed / refused / name unknown |
 | TC | truncation flag: "answer too big for UDP, retry over TCP" |
 | EDNS0 | DNS extension letting UDP responses exceed 512 bytes |
@@ -30,7 +30,7 @@ under one or more zones (default `dnsi.test`):
 
 ```text
 <encoded question>.ask.<zone>        knowledge questions
-<encoded question>.t.<token>.ask.<zone>   tokenized (private) zones
+<encoded question>.t.<token>.ask.<zone>   token-protected zones
 sess.<sid>.<n>.<total>.<chunk>...ask.<zone>   long-question sessions
 tool.<name>.<args...>.ask.<zone>     tool calls
 ask.<zone>                           usage / help
@@ -116,8 +116,8 @@ padding, decode UTF-8. Cap: 64 A records per answer (256 answer bytes).
 
 - Valid UTF-8 text never contains 0x00 or 0xFF, so octets stay clear of
   the most-filtered address values.
-- A-mode answers carry no CNAME graph and no TXT; the answer text is the
-  entire payload.
+- A-mode answers carry no related-question hints and no TXT; the answer text
+  is the entire payload.
 - A-mode and TXT answers are cached under separate keys.
 
 ```c
@@ -176,7 +176,8 @@ returns the timestamp bytes. Unknown tools answer with a TXT error
 message listing available tools (rcode NOERROR, so the client sees the
 hint). `args` are encoded with the same rules as questions (a literal
 `-` in args encodes as `%2D`), up to the 200-byte question ceiling, and
-carry the zone token the same way questions do.
+carry the zone token the same way questions do. Time and UUID results are
+unauthenticated network data, not trusted time or security credentials.
 
 Reference builders: `buildQuestionQname` (questions), `buildToolQname`
 (tools), and `buildSessionQname` (sessions) in `src/name.ts`. The CLI
@@ -261,7 +262,9 @@ and cost, not determined adversaries.
   cut at the cap (the client sees truncated text).
 - Long TXT answers exceed classic 512-byte UDP; DNSi sets TC and clients
   retry over TCP, or resolvers use EDNS0.
-- Answers are unencrypted plaintext: DNSi carries no secrets, ever.
+- Ordinary resolver lookups are plaintext and may be logged outside DNSi.
+  DoT/DoH protect compatible client connections to DNSi only, not a device's
+  separate path to its recursive resolver. Tokens provide no confidentiality.
 - Answer owner names use a compression pointer (offset 12); no CNAME
   records are emitted. Compression pointers are followed when read.
 - The LLM backend aborts upstream calls after a timeout (default 15 s,

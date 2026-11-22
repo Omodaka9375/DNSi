@@ -14,7 +14,7 @@ runtimes, CI) commonly block all egress but leave DNS resolution intact -
 researchers have repeatedly shown DNS is the one channel that survives
 (OpenAI ChatGPT DNS exfiltration fix, Feb 2026; AWS AgentCore DNS
 findings). Today that channel is only known as an attack surface. DNSi
-makes it a sanctioned, rate-limited, cacheable API:
+provides a rate-limited, cacheable API for an explicitly authorized channel:
 
 ```python
 # inside a locked-down sandbox: the only egress is DNS resolution
@@ -31,9 +31,11 @@ print(ask("summarize the dnsi protocol", "dnsi.internal"))
 print(ask("tool.uuid.ask.dnsi.internal", "dnsi.internal"))
 ```
 
-For a security team this is the acceptable version of agent egress: one
-allowlisted nameserver, per-resolver rate limits, an in-flight cap, and
-zero per-user logging. The alternative is fighting tunnels.
+For a security team this can be a deliberately allowed, read-only DNS gateway:
+one allowlisted nameserver, per-resolver rate limits, and an in-flight cap.
+The DNSi process writes no per-user query logs, but resolvers and network
+controls may. DNSi does not itself make a channel authorized; that decision
+belongs to the environment operator.
 
 ## 2. gethostbyname-only devices
 
@@ -44,30 +46,30 @@ first-class mode: **A-record compact answers** (PROTOCOL.md 3.3). A
 answer bytes per address, in order - concatenate, strip trailing NULs,
 decode UTF-8. Tools work the same way
 (`gethostbyname("tool.time.ask.dnsi.test")` returns the timestamp), so a
-constrained device gets a clock, an RNG and a hash without a crypto lib.
+constrained device gets a UTC timestamp, an identifier and a hash without a
+TLS or JSON stack. Time and UUIDs arrive without authentication: do not use
+them as trusted time, secrets, or security tokens.
 
 The complete C client is three lines. The A-mode cap is 256 answer
 bytes per query; ask follow-up questions for more.
 
-## 3. Hostile and captive networks
+## 3. Restricted networks
 
-Hotel wifi, airplane wifi, industrial floors: 443 is blocked or
-intercepted, 53 passes because everything breaks without it. `pnpm ask`
-or `dig` is the client. Nothing is installed, nothing is registered,
-nothing is logged server-side.
+Some networks permit DNS resolution while restricting application traffic,
+but resolver destinations, names, and record types may also be filtered. Use
+DNSi only with authorization. `pnpm ask` or `dig` is the client; no custom
+DNSi client is required. The DNSi process writes no per-user logs, while
+resolvers and network operators may log queries.
 
-## 4. The knowledge graph
+## 4. Follow-up questions
 
-Every answer carries related questions as `dig TXT` hints appended to
-the answer text. The graph is the product, not a UI nicety:
+TXT answers can carry up to three related questions as `dig TXT` hints
+appended to the answer text:
 
-- A crawler (or an agent) starts at one question and walks the hints
-  like links - the answer tree becomes browsable by any resolver.
-- Related answers hit the server cache and the resolver cache; popular
-  paths cost zero LLM calls.
-- Because questions are domains, the graph can be delegated: point an NS
-  record at a specialist DNSi (a medical zone, a legal zone) and the
-  client needs no new configuration.
+- A client can request a follow-up without constructing a new query name.
+- Related answers can use the server and resolver caches, avoiding repeated
+  model calls.
+- A specialist zone can serve its own prepared follow-up answers.
 
 Example walk (in demo mode, where the server repeats your question back):
 

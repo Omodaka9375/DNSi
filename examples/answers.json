@@ -2,7 +2,7 @@
   "default": "This is the DNSi demo server. It answers prepared questions about DNSi only - there is no AI behind it. Try asking: what is dnsi, how do i use dnsi, does dnsi need an api key, or what tools are available.",
   "questions": {
     "what is dnsi": {
-      "answer": "DNSi teaches the internet's directory service (DNS, around since 1983) a new trick: your question travels as a domain name, and the answer comes back as the reply. No app, no login, no HTTP. If a device can look up a name, it can ask.",
+      "answer": "DNSi uses standard DNS lookups to return short internal instructions, prepared answers, and utility results. It needs no custom DNSi client or HTTP application client on the device. Your server supplies the knowledge; AI is optional.",
       "related": ["how do i use dnsi", "what can dnsi be used for", "is there an ai behind this server"]
     },
     "how do i use dnsi": {
@@ -30,11 +30,11 @@
       "related": ["how do i use dnsi", "what is dnsi"]
     },
     "what can dnsi be used for": {
-      "answer": "Terminal Q&A without a browser; asking questions on networks that block everything except DNS; giving gethostbyname-only devices (printers, PLCs, old firmware) AI answers, a clock, a UUID and a hash; team knowledge boxes; and a sanctioned question channel for sandboxed AI agents.",
+      "answer": "Short internal instructions and prepared knowledge for resolver-only devices, small unauthenticated utilities, terminal experiments, and controlled agent research. DNSi requires compatible DNS resolution and must be used with network authorization.",
       "related": ["what is dnsi", "who made dnsi"]
     },
     "who can ask the dnsi demo server": {
-      "answer": "Anyone who can resolve DNS: any computer, phone, router or embedded device. That is the point. The server rate-limits per source address and logs nothing about who asked.",
+      "answer": "Anyone whose resolver can reach the service with compatible queries. The DNSi process rate-limits per source address and writes no per-user query logs, but recursive resolvers and network operators may log queries.",
       "related": ["is this an ai", "what can dnsi be used for"]
     },
     "who made dnsi": {
@@ -42,7 +42,7 @@
       "related": ["what is dnsi", "how do i use dnsi"]
     },
     "what is the time": {
-      "answer": "For live UTC time, query the built-in time tool: npx --package=@omodaka/dnsi dnsi-ask --tool time (or dig +short TXT tool.time.ask.dnsi.dev). Tool calls execute in microseconds and never touch an AI model.",
+      "answer": "For the server's current UTC time, query the built-in time tool: npx --package=@omodaka/dnsi dnsi-ask --tool time (or dig +short TXT tool.time.ask.dnsi.dev). This is unauthenticated network data, not trusted time. Tool calls never touch an AI model.",
       "related": ["what tools are available", "how do i use dnsi"]
     },
     "how do i split a git commit": {
@@ -66,7 +66,7 @@
       "related": ["what is dnsi", "who is dnsi for"]
     },
     "who is dnsi for": {
-      "answer": "Developers living in a terminal, people on captive or restricted networks, embedded/IoT engineers with gethostbyname-only devices, teams running an internal LAN knowledge box, and operators of sandboxed AI agents.",
+      "answer": "Primarily embedded and infrastructure engineers serving short, non-confidential knowledge to resolver-only devices. It also supports terminal experiments and explicitly authorized agent research.",
       "related": ["what can dnsi be used for", "how do i use dnsi"]
     }
   }

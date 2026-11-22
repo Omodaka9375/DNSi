@@ -1,12 +1,12 @@
 # DNSi Architecture
 
 Who this is for: contributors reading or changing the code. It assumes you
-know DNS basics (QNAME, TXT, CNAME, TTL); those are defined in
+know DNS basics (QNAME, TXT, A records, TTL); those are defined in
 [PROTOCOL.md](PROTOCOL.md).
 
 One process, zero runtime dependencies. The DNS wire code is hand-rolled
 (`src/wire.ts`) because DNSi is a protocol project and needs exact
-control over TXT chunking and CNAME answers.
+control over TXT chunking and compact A-record answers.
 
 ```text
                 +-------------------------------------------+
@@ -22,7 +22,8 @@ control over TXT chunking and CNAME answers.
          bucket, SERVFAIL        aware)                    usage | NXDOMAIN)
          on empty)                     |                        |
               |                 hit --> answer                 |
-              |                       miss                       |
+              |                       |                        |
+              |                  miss                       miss |
               |                  +-----+------+-----------------+
               |                  |            |                |
               |             usage()      tool()         question()
@@ -32,7 +33,7 @@ control over TXT chunking and CNAME answers.
               |                  |            |        OpenAI-compatible)
               |                  +-----+------+-----------------+
               |                        |
-              |            TXT record(s) + up to 3 CNAMEs
+              |          TXT record(s), or compact A records
               |            (chunkUtf8: 255-byte, UTF-8-safe)
               |                        |
               +----------> encodeResponse() --> wire bytes
@@ -42,7 +43,7 @@ control over TXT chunking and CNAME answers.
 
 | File          | Role                                                                 |
 |---------------|----------------------------------------------------------------------|
-| `src/wire.ts` | DNS wire format: parse queries, encode TXT/CNAME/A answers, `chunkUtf8` |
+| `src/wire.ts` | DNS wire format: parse queries, encode TXT/A answers, `chunkUtf8` |
 | `src/name.ts` | Question <-> QNAME codec, `parseDnsiQname` (zone dispatch), session/tool qname builders |
 | `src/server.ts` | UDP + TCP + DoT sockets, `Dnsi` resolver class, orchestration        |
 | `src/doh.ts` | DNS-over-HTTPS front (RFC 8484 GET + POST) over the same handler       |
@@ -110,15 +111,22 @@ control over TXT chunking and CNAME answers.
 - Session state is hard-capped (10k entries, oldest-evicted), TCP
   buffers are capped (128 KB per connection) and idle TCP sockets are
   dropped after 30 s.
-- No per-user logging anywhere; the process prints one startup line.
+- The DNSi process writes no per-user logs; it prints one startup line.
+  Recursive resolvers, network operators, and surrounding infrastructure
+  may log queries independently.
 - Rate limiting is best-effort (UDP source addresses are spoofable);
   it is abuse mitigation, not authentication. There is no auth by
   design: the API is read-only knowledge, and the cost control is the
-  per-zone token plus the token bucket and the in-flight cap.
+  per-zone token plus the token bucket and the in-flight cap. Tokens
+  restrict access and cost, but are visible in query names and do not provide
+  confidentiality. DoT/DoH protect only compatible client connections to
+  DNSi, not a legacy device's separate path to its normal resolver.
+- DNS-provided time and UUIDs are unauthenticated. Do not use them for
+  trusted time, secret generation, or security decisions.
 
 ## Testing
 
-`pnpm verify` = `tsc --noEmit` + 54 node:test tests: name codec
+`pnpm verify` = `tsc --noEmit` + 67 node:test tests: name codec
 roundtrips (ascii, unicode, length limits, tool qnames), wire chunking,
 the OpenAI-compatible backend against a mocked fetch (including the
 abort timeout), and end-to-end tests driving the real server over UDP
@@ -126,4 +134,5 @@ and TCP (question + related hints, tools, A mode reassembly, qtype-scoped
 caching, NODATA for AAAA, NXDOMAIN, rate limit, usage, 512-byte TC
 truncation, EDNS0 large-payload UDP with the 1232 ceiling,
 long-question sessions incl. per-zone isolation and retry accounting,
-per-zone token REFUSED/accept, multi-zone routing, canned demo).
+per-zone token REFUSED/accept, multi-zone routing, canned demo, aggregate
+counters, friendly question names, DoH GET/POST/error handling, and DoT).
