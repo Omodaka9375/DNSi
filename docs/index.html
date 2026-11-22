@@ -147,7 +147,6 @@ code { font-family: var(--mono); font-size: 0.85em; }
 .specs > div { display: flex; align-items: baseline; gap: 9px; padding: 13px 8px 13px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 .specs dt { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-4); }
 .specs dd { margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--ink); }
-.stats dd { font-size: 1.5rem; letter-spacing: -0.02em; }
 
 /* ---- sections ---- */
 section { border-bottom: 1px solid var(--rule); }
@@ -357,7 +356,6 @@ html[data-mode="dark"] footer p { color: #909090; }
   section .wrap { padding-top: 48px; padding-bottom: 48px; }
   .topbar-links { display: none; }
   .term-body { font-size: 12px; min-height: 240px; }
-  .stats dd { font-size: 1.15rem; }
   /* Stacked rows read well for the feature lists; the comparison grid
      keeps its columns and scrolls sideways instead. */
   table.blocks:not(.compare),
@@ -609,12 +607,6 @@ pnpm ask -- "how do I split a git commit" --local</pre>
             <tr><td>tools</td><td><b>Never the model.</b> Time, UUID and hash are computed in process; the cache holds them at no token cost.</td></tr>
           </tbody>
         </table>
-        <dl class="specs stats" style="margin-top: 36px;">
-          <div><dt>Max question</dt><dd>200 B, or 1000 B via sessions</dd></div>
-          <div><dt>Max answer</dt><dd>256 B in A mode</dd></div>
-          <div><dt>Rate limit</dt><dd>20 burst, 1 per second</dd></div>
-          <div><dt>Per-user logs</dt><dd>none</dd></div>
-        </dl>
       </div>
     </section>
 
