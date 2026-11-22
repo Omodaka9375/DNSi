@@ -113,7 +113,7 @@ for an hour.
 ```bash
 dnsi-ask "your question" [options]          # installed: npm i -g @omodaka/dnsi
 dnsi-ask --tool <time|uuid|echo|hash> [args...] [options]
-npx @omodaka/dnsi-ask "your question"       # without installing
+npx --package=@omodaka/dnsi dnsi-ask "your question"   # without installing
 ```
 
 | Flag | Meaning |
@@ -130,8 +130,8 @@ npx @omodaka/dnsi-ask "your question"       # without installing
 
 `tool.<name>` as the first word is auto-detected, so
 `dnsi-ask tool.hash hello` works too (the CLI comes from
-`npm i -g @omodaka/dnsi`; `npx @omodaka/dnsi-ask ...` runs it without
-installing). Questions over 200 bytes ride in
+`npm i -g @omodaka/dnsi`; `npx --package=@omodaka/dnsi dnsi-ask ...` runs
+it without installing). Questions over 200 bytes ride in
 sessions automatically; network failures print one clean line with an
 `--local` hint when the default public target is unreachable.
 

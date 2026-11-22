@@ -71,9 +71,10 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-npx @omodaka/dnsi-ask "what is dnsi"   # asks the public instance at dnsi.dev:
-                                       # prepared answers about DNSi, no AI, no key needed
-npx @omodaka/dnsi-ask --tool time      # built-in tools: time, uuid, echo, hash
+npx --package=@omodaka/dnsi dnsi-ask "what is dnsi"
+# asks the public instance at dnsi.dev: prepared answers about DNSi,
+# no AI, no key needed. Or: npm install -g @omodaka/dnsi, then dnsi-ask.
+npx --package=@omodaka/dnsi dnsi-ask --tool time   # tools: time, uuid, echo, hash
 ```
 
 Run your own:

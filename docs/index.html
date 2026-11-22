@@ -406,7 +406,7 @@ html[data-mode="dark"] footer p { color: #909090; }
         <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
       </span>
       <span class="topbar-right">
-        <span><span id="heroVersion">v0.3.1</span> . <b id="heroStars">open source</b></span>
+        <span><span id="heroVersion">v0.3.2</span> . <b id="heroStars">open source</b></span>
         <span class="topbar-modes" role="group" aria-label="Colour mode">
           <button class="modebtn" type="button" data-mode="light" aria-pressed="false">Paper</button>
           <button class="modebtn" type="button" data-mode="dark" aria-pressed="false">Ink</button>
@@ -478,14 +478,15 @@ html[data-mode="dark"] footer p { color: #909090; }
             <button class="ctab" type="button" data-pane="c" aria-pressed="false">C</button>
             <button class="ctab" type="button" data-pane="py" aria-pressed="false">Python</button>
           </div>
-<pre data-pane="cli">$ npx @omodaka/dnsi-ask "what is dnsi"
+<pre data-pane="cli">$ npm i -g @omodaka/dnsi
+$ dnsi-ask "what is dnsi"
 A question box that rides on DNS: ask by name, get the answer back as TXT records.
 
 related:
   dig TXT what-is-dnsi-history.ask.dnsi.dev
   dig TXT who-is-dnsi-for.ask.dnsi.dev
 
-$ npx @omodaka/dnsi-ask --tool time
+$ dnsi-ask --tool time
 2026-11-22T10:23:15.832Z</pre>
 <pre data-pane="dig" hidden>$ dig +short TXT what-is-dnsi.ask.dnsi.dev
 "A question box that rides on DNS: ask by name, get the answer"
@@ -898,7 +899,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         out.textContent = '';
         const span = document.createElement('span');
         span.className = 'a-dim';
-        span.textContent = 'No answer just now - is the public instance awake? You can always run your own: npx @omodaka/dnsi-ask "' + q + '" --local';
+        span.textContent = 'No answer just now - is the public instance awake? You can always run your own: npx --package=@omodaka/dnsi dnsi-ask "' + q + '" --local';
         out.appendChild(span);
       }
     }
@@ -1009,7 +1010,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         for (;;) {
           const els = frame();
           if (REDUCED) {
-            els.prompt.querySelector('.t-cmd').textContent = 'npx @omodaka/dnsi-ask --tool time';
+            els.prompt.querySelector('.t-cmd').textContent = 'dnsi-ask --tool time';
             els.thinking.style.display = '';
             for (const t of els.toolEls) t.classList.add('in');
             els.result.style.display = '';
@@ -1017,7 +1018,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
             return;
           }
           await sleep(500);
-          await typeInto(els.prompt, 'npx @omodaka/dnsi-ask --tool time', 34);
+          await typeInto(els.prompt, 'dnsi-ask --tool time', 34);
           await sleep(280);
           els.thinking.style.display = '';
           await sleep(700);
