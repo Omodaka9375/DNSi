@@ -113,12 +113,3 @@ $env:DNSI_LLM_BASE_URL = "https://api.openai.com/v1"
 $env:DNSI_LLM_API_KEY = "your-key"
 pnpm start
 ```
-
-## The one-sentence pitch
-
-For embedded and infrastructure developers who need short answers on machines
-that cannot make HTTPS requests, DNSi is a resolver-only knowledge gateway that
-delivers internal documentation and utilities through standard DNS, unlike chat
-applications and HTTP-based agent frameworks.
-
-**Tagline:** AI and internal knowledge for devices that only speak DNS.
