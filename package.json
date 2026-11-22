@@ -65,8 +65,8 @@
     "prepublishOnly": "pnpm verify && pnpm build"
   },
   "bin": {
-    "dnsi-server": "./dist/index.js",
-    "dnsi-ask": "./dist/ask-cli.js"
+    "dnsi-server": "dist/index.js",
+    "dnsi-ask": "dist/ask-cli.js"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
