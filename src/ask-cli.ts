@@ -66,10 +66,12 @@ if (firstArg !== undefined && firstArg.startsWith("-")) {
   process.exit(2);
 }
 
-// Default target is the public instance (dnsi.dev). Pass --local (or set
+// Default target is the public instance (nameserver ns.dnsi.dev, port 53,
+// names in the zone dnsi.dev: <question>.ask.dnsi.dev). Pass --local (or set
 // DNSI_LOCAL=1) to ask a server on your own machine instead.
 const localZone = "dnsi.test";
 const publicZone = "dnsi.dev";
+const publicServer = "ns.dnsi.dev";
 const zone = (
   zoneOpt ??
   process.env.DNSI_ZONES ??
@@ -84,7 +86,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   console.error(`invalid port: ${portOpt ?? process.env.DNSI_PORT}`);
   process.exit(2);
 }
-const host = serverOpt ?? process.env.DNSI_HOST ?? (useLocal ? "127.0.0.1" : publicZone);
+const host = serverOpt ?? process.env.DNSI_HOST ?? (useLocal ? "127.0.0.1" : publicServer);
 
 const qtype = useA ? RR_A : undefined;
 
@@ -99,7 +101,7 @@ async function send(qname: string): Promise<DnsiResponse> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const hint =
-      !useLocal && host === publicZone
+      !useLocal && host === publicServer
         ? " (tip: pass --local to query a local server on 127.0.0.1:5353)"
         : "";
     console.error(`DNS query to ${host}:${port} failed: ${msg}${hint}`);

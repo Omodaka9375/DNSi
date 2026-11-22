@@ -38,7 +38,7 @@ function qnameFor(q: string): string {
   return n;
 }
 
-test("udp: question answered, related questions are resolvable CNAMEs", async () => {
+test("udp: question answered, related questions hinted in the TXT", async () => {
   const backend = new CountingBackend(new EchoBackend());
   const server = await startServer({
     zones: [{ zone: ZONE }],
@@ -50,17 +50,19 @@ test("udp: question answered, related questions are resolvable CNAMEs", async ()
     const first = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(first.rcode, 0);
     assert.ok(first.txt.includes("DNSi (echo backend): What is DNSi?"));
-    assert.ok(first.cnames.length >= 1);
+    assert.equal(first.cnames.length, 0, "no CNAME records: RFC 1034 3.6.2 exclusivity");
+    const hints = [...first.txt.matchAll(/dig TXT (\S+)/g)].map((m) => m[1]);
+    assert.ok(hints.length >= 1, `expected related hints, got: ${first.txt}`);
 
-    // follow the graph: the CNAME target is itself a question
-    const target = first.cnames[0];
+    // follow the graph: the hinted name is itself a question
+    const target = hints[0];
     assert.ok(target);
     const second = await queryUdp(server.udpPort, target);
     assert.equal(second.rcode, 0);
     assert.ok(second.txt.length > 0);
 
     // cache: same question hits the cache (2 calls so far: original + the
-    // distinct related question resolved via its CNAME)
+    // distinct hinted related question)
     const again = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(again.txt, first.txt);
     assert.equal(backend.calls, 2);
@@ -283,7 +285,7 @@ test("sessions: questions over 200 bytes ride in parts, final part answers", asy
     assert.ok(finalQn);
     const answer = await queryUdp(server.udpPort, finalQn);
     assert.equal(answer.rcode, 0);
-    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
+    assert.ok(answer.txt.startsWith(`DNSi (echo backend): ${question}`));
 
     // session is consumed: re-sending the final part restarts a new session
     const again = await queryUdp(server.udpPort, finalQn);
@@ -370,7 +372,7 @@ test("session mode round-trips a unicode question without double-decoding", asyn
     assert.ok(finalQn);
     const answer = await queryUdp(server.udpPort, finalQn);
     // the echo backend prefixes the question; the question itself must be intact
-    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
+    assert.ok(answer.txt.startsWith(`DNSi (echo backend): ${question}`));
     assert.ok(!answer.txt.includes("\uFFFD"), "no replacement characters");
   } finally {
     await server.stop();
@@ -411,7 +413,7 @@ test("server enforces the session question ceiling on hand-built parts", async (
   }
 });
 
-test("related CNAMEs stay in the queried zone and carry its token", async () => {
+test("related hints stay in the queried zone and carry its token", async () => {
   const TOKEN = "s3cret";
   const server = await startServer({
     zones: [{ zone: "open.dnsi.test" }, { zone: ZONE, token: TOKEN }],
@@ -424,11 +426,14 @@ test("related CNAMEs stay in the queried zone and carry its token", async () => 
     assert.ok(qn);
     const res = await queryUdp(server.udpPort, qn);
     assert.equal(res.rcode, 0);
-    assert.ok(res.cnames.length >= 1);
-    for (const c of res.cnames) {
+    assert.equal(res.cnames.length, 0, "no CNAME records: RFC 1034 3.6.2 exclusivity");
+    // the related hints are embedded in the answer text as dig lines
+    const hinted = [...res.txt.matchAll(/dig TXT (\S+)/g)].map((m) => m[1]);
+    assert.ok(hinted.length >= 1);
+    for (const c of hinted) {
       // target names the tokenized zone, not zones[0], and embeds the token
-      assert.ok(c.endsWith(`.ask.${ZONE}`), `cname left the queried zone: ${c}`);
-      assert.ok(c.includes(`.t.${TOKEN}.ask.`), `cname lost the zone token: ${c}`);
+      assert.ok(c.endsWith(`.ask.${ZONE}`), `hint left the queried zone: ${c}`);
+      assert.ok(c.includes(`.t.${TOKEN}.ask.`), `hint lost the zone token: ${c}`);
       // and it actually resolves
       const rel = await queryUdp(server.udpPort, c);
       assert.equal(rel.rcode, 0);
@@ -436,7 +441,10 @@ test("related CNAMEs stay in the queried zone and carry its token", async () => 
     // an open zone answers without a token
     const open = await queryUdp(server.udpPort, buildQuestionQname("hi", "open.dnsi.test") ?? "");
     assert.equal(open.rcode, 0);
-    assert.ok(open.cnames.every((c) => c.endsWith(".ask.open.dnsi.test")));
+    assert.ok(!open.txt.includes(`.t.${TOKEN}.ask.`), "open zone hints carry no token");
+    for (const c of [...open.txt.matchAll(/dig TXT (\S+)/g)].map((m) => m[1])) {
+      assert.ok(c.endsWith(".ask.open.dnsi.test"));
+    }
   } finally {
     await server.stop();
   }
@@ -549,7 +557,7 @@ test("sessions with the same sid in different zones do not collide", async () =>
     assert.ok(finalOne);
     const resOne = await queryUdp(server.udpPort, finalOne);
     assert.equal(resOne.rcode, 0);
-    assert.equal(resOne.txt, `DNSi (echo backend): ${question}`);
+    assert.ok(resOne.txt.startsWith(`DNSi (echo backend): ${question}`));
   } finally {
     await server.stop();
   }
@@ -585,7 +593,7 @@ test("re-sending an existing session part does not double-count its bytes", asyn
     assert.ok(finalQn);
     const answer = await queryUdp(server.udpPort, finalQn);
     assert.equal(answer.rcode, 0);
-    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
+    assert.ok(answer.txt.startsWith(`DNSi (echo backend): ${question}`));
   } finally {
     await server.stop();
   }
@@ -610,10 +618,13 @@ test("canned demo server: prepared questions answered, others get the default, g
     // exact match, different casing
     const hit = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(hit.rcode, 0);
-    assert.equal(hit.txt, "DNSi is a question box over DNS.");
-    // the related CNAME is one of the prepared questions and resolves
-    assert.ok(hit.cnames.includes("what-tools-are-available.ask." + ZONE));
-    const rel = await queryUdp(server.udpPort, hit.cnames[0] ?? "");
+    assert.ok(hit.txt.startsWith("DNSi is a question box over DNS."));
+    // no CNAME records: RFC 1034 3.6.2 exclusivity; the related hint is a
+    // dig TXT line inside the answer and resolves
+    assert.equal(hit.cnames.length, 0);
+    const hint = hit.txt.match(/dig TXT (\S+)/)?.[1];
+    assert.equal(hint, "what-tools-are-available.ask." + ZONE);
+    const rel = await queryUdp(server.udpPort, hint ?? "");
     assert.equal(rel.txt, "time, uuid, echo, hash.");
 
     // unknown question falls back to the default

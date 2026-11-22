@@ -70,8 +70,10 @@ control over TXT chunking and CNAME answers.
    session chunks collected under a per-zone key, byte-budgeted at
    admission, and answered inline on the final chunk.
 6. The answer becomes one TXT record (UTF-8-safe 255-byte strings) or A
-   records for qtype A, plus up to 3 related-question CNAMEs (TXT only),
-   cached for the answer TTL, then encoded back onto the wire.
+   records for qtype A; up to 3 related questions are appended to the
+   TXT answer as `dig TXT` hints (not CNAME records: a CNAME cannot
+   share an owner with other data, RFC 1034 3.6.2). Cached for the
+   answer TTL, then encoded back onto the wire.
 
 ## Backends
 
@@ -79,7 +81,7 @@ control over TXT chunking and CNAME answers.
   answers would be a lie for an LLM, so it reports dynamic (TTL 60).
 - `OpenAICompatBackend` - any `/chat/completions` endpoint (OpenAI, Groq,
   OpenRouter, Ollama). The model is prompted to append a `RELATED:` line
-  with 2-3 follow-up questions; those become the CNAME graph. HTTP
+  with 2-3 follow-up questions; those become the related hints. HTTP
   failures and shape-invalid JSON raise, surfacing as SERVFAIL. Each
   fetch carries an `AbortSignal.timeout` (default 15 s, `DNSI_LLM_TIMEOUT_MS`)
   so a stalled provider cannot hold in-flight slots forever.
@@ -118,7 +120,7 @@ control over TXT chunking and CNAME answers.
 roundtrips (ascii, unicode, length limits, tool qnames), wire chunking,
 the OpenAI-compatible backend against a mocked fetch (including the
 abort timeout), and end-to-end tests driving the real server over UDP
-and TCP (question + CNAME graph, tools, A mode reassembly, qtype-scoped
+and TCP (question + related hints, tools, A mode reassembly, qtype-scoped
 caching, NODATA for AAAA, NXDOMAIN, rate limit, usage, 512-byte TC
 truncation, EDNS0 large-payload UDP with the 1232 ceiling,
 long-question sessions incl. per-zone isolation and retry accounting,

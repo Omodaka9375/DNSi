@@ -322,14 +322,21 @@ export class Dnsi {
       // A mode cannot carry the graph; the answer text is the payload.
       records = answerToARecords(answer.text, ttl);
     } else {
-      records = [txtRecord(answer.text, ttl)];
-      // Related questions live in the zone that was actually queried, and
-      // carry that zone's token: without the token, following the graph on
-      // a token-protected zone would come back REFUSED.
+      // Related questions are appended to the TXT answer as "dig TXT"
+      // hints rather than emitted as CNAME records: a CNAME at the same
+      // owner name as a TXT record violates RFC 1034 3.6.2 / RFC 2181
+      // 10.1 (a CNAME node must not hold other data), and strict
+      // resolvers (Google/Cloudflare DoH JSON) SERVFAIL such responses.
+      // The hints still name the zone that was queried and carry its
+      // token, so following the graph on a token-protected zone works.
+      let text = answer.text;
+      const hints: string[] = [];
       for (const rel of answer.related.slice(0, 3)) {
         const target = buildQuestionQname(rel, zone.zone, zone.token);
-        if (target) records.push({ type: "CNAME", target, ttl: TTL_DYNAMIC });
+        if (target) hints.push(`dig TXT ${target}`);
       }
+      if (hints.length > 0) text += "\nrelated:\n  " + hints.join("\n  ");
+      records = [txtRecord(text, ttl)];
     }
     if (cacheable) this.cache.set(cacheKey(qtype, qname), records, ttl);
     return { records, rcode: RCODE.NOERROR };

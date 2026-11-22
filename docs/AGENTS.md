@@ -58,11 +58,11 @@ nothing is logged server-side.
 
 ## 4. The knowledge graph
 
-Every answer carries related questions as CNAMEs. The graph is the
-product, not a UI nicety:
+Every answer carries related questions as `dig TXT` hints appended to
+the answer text. The graph is the product, not a UI nicety:
 
-- A crawler (or an agent) starts at one question and walks CNAMEs like
-  links - the answer tree becomes browsable by any resolver.
+- A crawler (or an agent) starts at one question and walks the hints
+  like links - the answer tree becomes browsable by any resolver.
 - Related answers hit the server cache and the resolver cache; popular
   paths cost zero LLM calls.
 - Because questions are domains, the graph can be delegated: point an NS
@@ -73,9 +73,10 @@ Example walk (in demo mode, where the server repeats your question back):
 
 ```text
 dig TXT "What is DNSi?" @server
-  TXT  "DNSi (echo backend): What is DNSi?"   ; literal server output, demo mode
-  CNAME what-is-dnsi.ask.dnsi.test
-  CNAME list-tools.ask.dnsi.test
+  TXT  "DNSi (echo backend): What is DNSi?
+        related:
+          dig TXT what-is-dnsi.ask.dnsi.test
+          dig TXT list-tools.ask.dnsi.test"
 
 dig TXT what-is-dnsi.ask.dnsi.test @server   ; follow the graph
   TXT  "DNSi (echo backend): what is dnsi"
@@ -87,7 +88,7 @@ dig TXT what-is-dnsi.ask.dnsi.test @server   ; follow the graph
    `%XX`, labels <= 50 bytes, question <= 200 bytes).
 2. Query `<labels>.ask.<zone>` TXT over UDP or TCP.
 3. Concatenate TXT character-strings in order (they are UTF-8-safe).
-4. Follow CNAMEs for related questions.
+4. Parse the `related:` block for follow-up questions.
 5. Honor TTLs: 60 dynamic, 3600 canonical. Cache aggressively; that is
    the design.
 6. On classic UDP, a TC=1 response means "retry over TCP" (PROTOCOL.md

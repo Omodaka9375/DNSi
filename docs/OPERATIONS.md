@@ -63,8 +63,9 @@ pnpm ask -- "what is dnsi" --local
 
 The JSON shape: `{"default": "...", "questions": {"<question>": {"answer":
 "...", "related": ["follow-up question", ...]}}}`. Matching ignores case,
-trailing punctuation and extra spaces. Related entries become resolvable
-CNAMEs. Prepared answers are canonical and cache for an hour.
+trailing punctuation and extra spaces. Related entries become `dig TXT`
+hints appended to the answer. Prepared answers are canonical and cache
+for an hour.
 
 ## Production shape
 

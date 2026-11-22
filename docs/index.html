@@ -303,7 +303,7 @@ table.blocks tr.group:first-child td { padding-top: 4px; }
   text-transform: uppercase; background: var(--ink); color: var(--paper); border: 0; padding: 0 20px; cursor: pointer;
 }
 .askrow button:hover { background: var(--paper); color: var(--ink); outline: 1px solid var(--ink); outline-offset: -1px; }
-.askout { padding: 12px 14px; font-family: var(--mono); font-size: 0.8rem; line-height: 1.6; color: var(--ink-2); border-top: 1px solid var(--rule); min-height: 1.6em; }
+.askout { padding: 12px 14px; font-family: var(--mono); font-size: 0.8rem; line-height: 1.6; color: var(--ink-2); border-top: 1px solid var(--rule); min-height: 1.6em; white-space: pre-line; overflow-wrap: anywhere; }
 .askout .a-ok { color: var(--ink); }
 .askout .a-dim { color: var(--ink-4); }
 
@@ -504,7 +504,7 @@ b'A question box that rides on DNS: ...'</pre>
           <div class="askout" id="askOut" aria-live="polite">The public instance answers here the moment dnsi.dev is live. Until then: run your own (window 1 above) and ask it over your LAN.</div>
         </div>
         <p class="lead" style="margin: 24px 0 0;">
-          Related questions come back as CNAME records, so one answer is also a pointer into
+          Related questions ride inside the answer as dig-ready names, so one answer points into
           a graph. Every one of them is a name you can ask again with the same single call.
         </p>
       </div>
@@ -876,7 +876,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         const lines = [
           { icon: 'Q', name: 'TXT', arg: 'tool.time.ask.dnsi.dev' },
           { icon: 'A', name: 'answer', arg: '', diff: true },
-          { icon: '>', name: 'CNAME', arg: 'what-is-dnsi.ask.dnsi.dev' },
+          { icon: '>', name: 'TXT', arg: 'related: what-is-dnsi.ask.dnsi.dev' },
         ];
         const toolEls = lines.map((l) => {
           const row = document.createElement('div');

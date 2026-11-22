@@ -38,8 +38,8 @@ ask.<zone>                           usage / help
 
 Anything outside the zones gets NXDOMAIN. A tokenized zone queried
 without its token gets REFUSED (rcode 5). Anything else gets an ANSWER
-section with TXT records; knowledge answers additionally carry CNAME
-records pointing at related questions.
+section with TXT records; related questions are appended to the answer
+text as dig hints (section 3.2).
 
 ## 2. Question encoding (QNAME)
 
@@ -76,12 +76,27 @@ The answer text is split into character-strings of at most 255 bytes,
 multibyte characters in half). All strings are returned as one TXT
 record; a client concatenates the strings in order.
 
-### 3.2 CNAME: the related-question graph
+### 3.2 Related questions in the answer text
 
-A knowledge answer may carry up to 3 CNAME records, each pointing at
-another encoded question in the same zone. These names are themselves
-resolvable: the graph is addressable, cacheable, and delegatable. A
-client follows a CNAME by issuing a new TXT query for that name.
+A knowledge answer may carry up to 3 **related questions**, appended to
+the answer text itself:
+
+```text
+<answer text>
+related:
+  dig TXT <encoded-question>.ask.<zone>
+  ...
+```
+
+Each hint names another encoded question in the same zone (carrying the
+zone token if one is required), so the graph is addressable by typing
+the hint. A client follows it by issuing a new TXT query for that name.
+
+Earlier versions emitted these as CNAME records sharing the question's
+owner name. That violates RFC 1034 3.6.2 / RFC 2181 10.1 (a node with a
+CNAME must not hold other data), and strict resolvers - Google and
+Cloudflare DoH JSON among them - SERVFAIL such responses. The hints are
+plain text now, and every resolver accepts the answer.
 
 ### 3.3 A-record compact-answer mode (gethostbyname devices)
 
@@ -176,8 +191,8 @@ sess.<sid>.<n>.<total>.<encoded-chunk>[.t.<token>].ask.<zone>
   chunks.
 - Each incomplete part answers `stored <have>/<total>` (TXT, TTL 60).
 - When all parts are present the server assembles the question in part
-  order, answers it inline on the final query (TXT + CNAME graph, or A
-  records for qtype A), and deletes the session.
+  order, answers it inline on the final query (TXT with related hints,
+  or A records for qtype A), and deletes the session.
 - Sessions expire after 10 minutes; max 32 parts, and the assembled
   question is capped at 1000 bytes server-side (a part that would cross
   the cap answers REFUSED, and the backend is never called). Session
@@ -230,8 +245,8 @@ and cost, not determined adversaries.
 - Long TXT answers exceed classic 512-byte UDP; DNSi sets TC and clients
   retry over TCP, or resolvers use EDNS0.
 - Answers are unencrypted plaintext: DNSi carries no secrets, ever.
-- Answer owner names use a compression pointer (offset 12); CNAME rdata
-  targets are uncompressed. Compression pointers are followed when read.
+- Answer owner names use a compression pointer (offset 12); no CNAME
+  records are emitted. Compression pointers are followed when read.
 - The LLM backend aborts upstream calls after a timeout (default 15 s,
   `DNSI_LLM_TIMEOUT_MS`) so a stalled provider cannot exhaust the
   in-flight cap.
@@ -240,11 +255,11 @@ and cost, not determined adversaries.
 
 ```text
 dig +short TXT "What is DNSi?" @server -p 5353
-;; ANSWER (TXT, 34 bytes):
+;; ANSWER (TXT):
 DNSi (echo backend): What is DNSi?
-;; ANSWER (CNAME, related questions):
-  what-is-dnsi.ask.dnsi.test
-  list-tools.ask.dnsi.test
+related:
+  dig TXT what-is-dnsi.ask.dnsi.test
+  dig TXT list-tools.ask.dnsi.test
 
 dig +short TXT tool.time.ask.dnsi.test
 ;; ANSWER (TXT, 24 bytes):

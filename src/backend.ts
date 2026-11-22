@@ -36,7 +36,7 @@ const SYSTEM_PROMPT = [
   "Keep the answer under 600 characters, plain text, no markdown.",
   "After the answer, on its own last line, write RELATED: followed by 2 or 3",
   "short follow-up questions separated by | (no numbering). These become",
-  "CNAME records pointing at related questions in the knowledge graph.",
+  "related-question hints appended to the answer text.",
 ].join(" ");
 
 function isRecord(v: unknown): v is Record<string, unknown> {
