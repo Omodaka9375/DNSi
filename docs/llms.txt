@@ -1,0 +1,35 @@
+# DNSi
+
+> DNSi is an Apache-2.0 TypeScript server and CLI that returns short internal instructions, prepared answers, optional AI answers, and small utility results through standard DNS lookups. Version 1.0.0 requires Node.js 22 or later and has zero runtime dependencies.
+
+DNSi is for embedded and infrastructure developers who need answers on machines that cannot make HTTPS requests. It requires compatible DNS resolution and no custom DNSi client. A device can request TXT records or receive compact answer bytes through `gethostbyname` A-record lookups.
+
+The public demo at https://dnsi.dev serves prepared answers about DNSi and real local tools. It does not use AI. Operators can configure prepared answers, an echo backend, or an OpenAI-compatible model on their own server.
+
+Install and try it:
+
+```bash
+npm install -g @omodaka/dnsi
+dnsi-ask "what is dnsi"
+dnsi-ask --tool time
+```
+
+Ordinary resolver lookups are plaintext and may be logged outside DNSi. Tokens restrict access and cost but do not provide confidentiality. DoT and DoH protect compatible client connections to DNSi, not a legacy device's separate path to its resolver. Time and UUID results are unauthenticated network data, not trusted security inputs.
+
+## Documentation
+
+- [Plain-language overview](https://dnsi.dev/PLAIN.md): What DNSi is, its main uses, installation, and security limits.
+- [Protocol specification](https://dnsi.dev/PROTOCOL.md): QNAME encoding, TXT and A-record answers, sessions, tokens, transports, and limits.
+- [Agent and device integration](https://dnsi.dev/AGENTS.md): Resolver-only devices, controlled agent research, client checklist, and follow-up questions.
+- [Architecture](https://dnsi.dev/ARCHITECTURE.md): Components, request flow, backends, caching, security posture, and tests.
+- [Operations](https://dnsi.dev/OPERATIONS.md): Configuration, CLI reference, production deployment, threat model, and verification.
+
+## Source and package
+
+- [GitHub repository](https://github.com/Omodaka9375/DNSi): TypeScript source, tests, deployment files, and project documentation.
+- [npm package](https://www.npmjs.com/package/@omodaka/dnsi): Published `@omodaka/dnsi` package providing the `dnsi-server` and `dnsi-ask` commands.
+
+## Optional
+
+- [DNSi website](https://dnsi.dev/): Live prepared-answer and tool demo, examples, deployment guide, and security notes.
+- [Prepared demo answers](https://raw.githubusercontent.com/Omodaka9375/DNSi/master/examples/answers.json): Example JSON input for a DNSi server with no AI backend.

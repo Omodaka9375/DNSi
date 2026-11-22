@@ -7,6 +7,7 @@
 <meta name="description" content="DNSi delivers internal knowledge and small utilities through standard DNS lookups. No custom client on the device, zero runtime dependencies, Node 22+.">
 <meta name="theme-color" content="#101010">
 <link rel="alternate" type="text/plain" href="PLAIN.md" title="PLAIN.md">
+<link rel="describedby" type="text/plain" href="llms.txt">
 
 <meta property="og:title" content="DNSi - internal knowledge for resolver-only devices" />
 <meta property="og:description" content="A question box that rides on DNS. Any device that can resolve a name can ask; the answer comes back as the reply." />
@@ -414,7 +415,7 @@ html[data-mode="dark"] footer p { color: #909090; }
   <!-- Top rule -->
   <div class="topbar">
     <div class="wrap">
-      <span class="brand"><a href="#"><img src="icon.png" alt="">dnsi / server</a></span>
+      <span class="brand"><a href="#"><img src="icon.png" alt="">dnsi</a></span>
       <span class="topbar-links">
         <a href="#what">What</a>
         <a href="#use">Use</a>
@@ -423,8 +424,7 @@ html[data-mode="dark"] footer p { color: #909090; }
         <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
       </span>
       <span class="topbar-right">
-        <span><span id="heroVersion">v1.0.0</span> . Apache-2.0</span>
-        <span id="heroStats" style="display:none"> . <b id="heroStatsText"></b></span>
+        <span><span id="heroVersion">v1.0.0</span>  Apache-2.0</span>
         <span class="topbar-modes" role="group" aria-label="Colour mode">
           <button class="modebtn" type="button" data-mode="light" aria-pressed="false">Paper</button>
           <button class="modebtn" type="button" data-mode="dark" aria-pressed="false">Ink</button>
@@ -440,15 +440,14 @@ html[data-mode="dark"] footer p { color: #909090; }
         <div class="hero-copy">
           <h1><img src="icon.png" alt="DNSi icon">dnsi<span class="cursor">_</span></h1>
           <p class="dek">
-            <strong>Internal knowledge and small tools, delivered by DNS.</strong> Give a
-            legacy device or locked-down machine short answers without adding an HTTP
-            client or a custom DNSi client. AI is optional on your own server.
+            <strong>Internal knowledge and small tools, delivered by DNS.</strong>
+            DNS is the most reachable API on earth. Every OS, every router firmware, every embedded device, every language stdlib or getaddrinfo speaks it. 
           </p>
           <div class="toolgrid">
             <span class="tgrid-label">built-in tools, answered instantly, no AI:</span>
             <div class="tgrid-row">
-              <button class="tg" type="button" data-q="tool time"><code>time</code><small>server UTC, unauthenticated</small></button>
-              <button class="tg" type="button" data-q="tool uuid"><code>uuid</code><small>identifier, not a security token</small></button>
+              <button class="tg" type="button" data-q="tool time"><code>time</code><small>server UTC</small></button>
+              <button class="tg" type="button" data-q="tool uuid"><code>uuid</code><small>identifier</small></button>
               <button class="tg" type="button" data-q="tool echo hi"><code>echo</code><small>repeats your text</small></button>
               <button class="tg" type="button" data-q="tool hash hello"><code>hash</code><small>sha256 of args</small></button>
             </div>
@@ -1028,30 +1027,6 @@ dnsi-ask "how do I split a git commit" --local</pre>
         if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     }
-
-    /* ---- Live usage badge: stats.ask.dnsi.dev over our own DoH ---- */
-    (async () => {
-      const badge = document.getElementById('heroStats');
-      if (!badge) return;
-      try {
-        const r = await fetch(DOH_URL + '?dns=' + wireQuery('stats.ask.' + ASK_ZONE, (Math.random() * 0xffff) | 0), {
-          headers: { accept: 'application/dns-message' },
-        });
-        if (!r.ok) return;
-        const { rcode, txts } = parseWireResp(new Uint8Array(await r.arrayBuffer()));
-        if (rcode !== 0 || !txts) return;
-        const qs = txts.match(/questions (\d+)/);
-        const up = txts.match(/uptime (\S+)/);
-        const hit = txts.match(/cache-hits \d+ \((\d+)% hit\)/);
-        if (!qs) return;
-        const text = [];
-        text.push(Number(qs[1]).toLocaleString('en-US') + ' questions answered');
-        if (hit) text.push(hit[1] + '% cached');
-        if (up) text.push('up ' + up[1]);
-        document.getElementById('heroStatsText').textContent = text.join(' . ');
-        badge.style.display = '';
-      } catch (e) { /* badge is a nice-to-have; stay silent */ }
-    })();
 
     /* ---- Scroll reveal (animation only, never hides content) ---- */
     const revealables = Array.from(document.querySelectorAll('section .wrap > *:not(.sec-head)'));
