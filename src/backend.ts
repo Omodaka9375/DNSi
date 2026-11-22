@@ -140,7 +140,13 @@ export class CannedBackend implements Backend {
     this.map = new Map();
     for (const [k, v] of Object.entries(entries)) {
       if (isRecord(v) && typeof v.answer === "string" && v.answer.length > 0) {
-        this.map.set(normalizeQuestion(k), v);
+        // related is normalized to a string[] here so a malformed answers
+        // file degrades to "no related questions" instead of throwing at
+        // answer time, outside the backend error handling.
+        const related = Array.isArray(v.related)
+          ? v.related.filter((s): s is string => typeof s === "string")
+          : [];
+        this.map.set(normalizeQuestion(k), { answer: v.answer, related });
       }
     }
     this.fallback = fallback;

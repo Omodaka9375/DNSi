@@ -33,6 +33,14 @@ const MAX_A_RECORDS = 64;
 /** Sessions expire this long after their last chunk. */
 const SESSION_TTL_MS = 10 * 60 * 1000;
 
+/** Hard ceiling on concurrently tracked sessions (memory exhaustion guard). */
+const MAX_SESSIONS = 10_000;
+/** Idle TCP connections are dropped after this long. */
+const TCP_IDLE_TIMEOUT_MS = 30_000;
+/** Per-connection TCP receive buffer cap: a peer must not be able to
+ * inflate server memory while a query is in flight. */
+const MAX_TCP_BUFFER = 128 * 1024;
+
 export type DnsiOptions = {
   zones: ZoneConfig[];
   udpPort: number;
@@ -45,8 +53,21 @@ export type DnsiOptions = {
 
 export type ResolveResult = { records: AnswerRecord[]; rcode: number };
 
+/** TXT RDATA is written into a u16 RDLENGTH, so keep the total below 64KB:
+ * a huge backend answer degrades to a truncated answer instead of a
+ * silently wrapped, malformed packet. 60000 also leaves headroom for the
+ * question name and related-question CNAMEs in the same response. */
+const MAX_TXT_RDATA = 60000;
+
 function txtRecord(text: string, ttl: number): AnswerRecord {
-  return { type: "TXT", strings: chunkUtf8(text), ttl };
+  const kept: Buffer[] = [];
+  let total = 0;
+  for (const s of chunkUtf8(text)) {
+    if (total + s.length > MAX_TXT_RDATA) break;
+    kept.push(s);
+    total += s.length;
+  }
+  return { type: "TXT", strings: kept, ttl };
 }
 
 /**
@@ -188,6 +209,21 @@ export class Dnsi {
     for (const [k, v] of this.sessions) {
       if (now - v.created > SESSION_TTL_MS) this.sessions.delete(k);
     }
+    if (this.sessions.size >= MAX_SESSIONS) {
+      // Age pruning alone is not enough when the per-IP limiter is bypassed
+      // with spoofed UDP source addresses: every new sid is fresh state.
+      // Evict oldest-created sessions down to half the cap; the scan runs
+      // once per eviction batch, not once per insert.
+      const entries = [...this.sessions.entries()].sort(
+        (a, b) => a[1].created - b[1].created,
+      );
+      const target = Math.floor(MAX_SESSIONS / 2);
+      for (let i = 0; i < entries.length && this.sessions.size > target; i += 1) {
+        const item = entries[i];
+        if (item === undefined) break;
+        this.sessions.delete(item[0]);
+      }
+    }
 
     let entry = this.sessions.get(sid);
     if (!entry || entry.total !== total) {
@@ -309,10 +345,20 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
 
   const tcp = net.createServer((socket) => {
     tcpSockets.add(socket);
+    // Idle connections are dropped and closing sockets leave the tracking
+    // set: without this, one Socket object leaks per connect/close cycle
+    // and held-open connections drain file descriptors.
+    socket.setTimeout(TCP_IDLE_TIMEOUT_MS);
+    socket.on("timeout", () => socket.destroy());
+    socket.on("close", () => tcpSockets.delete(socket));
     let buf = Buffer.alloc(0);
     let chain: Promise<void> = Promise.resolve();
     socket.on("data", (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk]);
+      if (buf.length > MAX_TCP_BUFFER) {
+        socket.destroy();
+        return;
+      }
       chain = chain.then(async () => {
         // Drain all complete framed queries currently buffered, in order.
         for (;;) {
@@ -329,6 +375,10 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
             socket.write(framed);
           }
         }
+      }).catch(() => {
+        // A rejection must never wedge this connection's chain for good or
+        // reach Node's fatal unhandled-rejection path. Fail closed.
+        socket.destroy();
       });
     });
     socket.on("error", () => {});
@@ -344,9 +394,15 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
   if (!opts.tcpOnly) {
     udp = dgram.createSocket("udp4");
     udp.on("message", (msg, rinfo) => {
-      void dnsi.handleQuery(msg, rinfo.address, "udp").then((resp) => {
-        if (resp) udp?.send(resp, rinfo.port, rinfo.address);
-      });
+      void dnsi
+        .handleQuery(msg, rinfo.address, "udp")
+        .then((resp) => {
+          if (resp) udp?.send(resp, rinfo.port, rinfo.address);
+        })
+        .catch(() => {
+          // A codec or backend bug must never reach Node's fatal
+          // unhandled-rejection path. Answer nothing rather than crash.
+        });
     });
     udp.on("error", () => {}); // never crash on a bad datagram
     await new Promise<void>((resolve, reject) => {
