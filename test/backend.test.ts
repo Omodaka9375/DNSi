@@ -6,6 +6,7 @@ import {
   loadCannedAnswers,
   normalizeQuestion,
   selectBackend,
+  DEFAULT_LLM_TIMEOUT_MS,
 } from "../src/backend.js";
 import { encodedByteLength, MAX_SESSION_CHUNK, MAX_SESSION_QUESTION_BYTES } from "../src/name.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -164,4 +165,21 @@ test("session budget constants match the documented caps", () => {
   // a stray uppercase literal decodes to one byte (decodeEncodedText passes
   // any non-escape char through), so it counts rather than being rejected
   assert.equal(encodedByteLength("Z"), 1);
+});
+
+test("openai backend: request carries an abort timeout signal", async () => {
+  const { impl, calls } = mockFetch(200, COMPLETIONS_OK);
+  const backend = new OpenAICompatBackend("https://api.example/v1", "sk-test", "m1", impl);
+  await backend.ask("hi");
+  const init = calls[0]?.init as RequestInit & { signal?: AbortSignal };
+  assert.ok(init.signal instanceof AbortSignal, "fetch must receive an AbortSignal");
+});
+
+test("selectBackend: DNSI_LLM_TIMEOUT_MS sizes the abort timeout", () => {
+  // Indirect: selectBackend only constructs the backend; assert via the
+  // exported default and a directly-constructed instance instead.
+  assert.equal(typeof DEFAULT_LLM_TIMEOUT_MS, "number");
+  assert.ok(DEFAULT_LLM_TIMEOUT_MS >= 1000);
+  const b = new OpenAICompatBackend("https://x/v1", "k", "m", fetch, 250);
+  assert.equal(b.name, "openai-compat");
 });

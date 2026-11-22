@@ -24,6 +24,12 @@ The fastest way to feel it (once the public instance is live):
 npx dnsi-ask "what is dnsi"
 ```
 
+Or ask one of the built-in tools (a clock, a UUID generator, a hash):
+
+```bash
+npx dnsi-ask --tool time
+```
+
 Or run your own in one minute, no account, no API key:
 
 ```bash
@@ -84,12 +90,13 @@ pnpm install
 pnpm start                 # window 1: your own question box
 
 pnpm ask -- "what is dnsi" # window 2: ask it anything
+pnpm ask --tool time       # ...or use a built-in tool
 ```
 
 Works with normal tools too:
 
 ```bash
-dig +short TXT "what is dnsi" @127.0.0.1 -p 5353
+dig +short TXT what-is-dnsi.ask.dnsi.test @127.0.0.1 -p 5353
 ```
 
 And when you want real AI answers instead of the built-in demo mode, point

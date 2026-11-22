@@ -26,7 +26,7 @@
       "related": ["is this an ai", "what is dnsi"]
     },
     "what tools are available": {
-      "answer": "Four built-in tools answer without any AI: tool.time (current UTC time), tool.uuid (random UUID), tool.echo (repeats your text), and tool.hash (SHA-256 of your text). Example name: tool.time.ask.dnsi.dev.",
+      "answer": "Four built-in tools answer without any AI: tool.time (current UTC time), tool.uuid (random UUID), tool.echo (repeats your text), and tool.hash (SHA-256 of your text). Example: dnsi-ask --tool time, or dig TXT tool.time.ask.dnsi.dev.",
       "related": ["how do i use dnsi", "what is dnsi"]
     },
     "what can dnsi be used for": {
@@ -40,6 +40,34 @@
     "who made dnsi": {
       "answer": "DNSi is an open-source experiment by @Omodaka9375. Code: github.com/Omodaka9375/DNSi - site: dnsi.dev. The npm package is dnsi (zero runtime dependencies, two commands: dnsi-server and dnsi-ask).",
       "related": ["what is dnsi", "how do i use dnsi"]
+    },
+    "what is the time": {
+      "answer": "For live UTC time, query the built-in time tool: dnsi-ask --tool time (or dig +short TXT tool.time.ask.dnsi.dev). Tool calls execute in microseconds and never touch an AI model.",
+      "related": ["what tools are available", "how do i use dnsi"]
+    },
+    "how do i split a git commit": {
+      "answer": "Run git rebase -i HEAD~2, mark the commit as 'edit', then git reset HEAD^ to unstage its changes. Stage and commit the pieces separately with git add -p && git commit, then finish with git rebase --continue.",
+      "related": ["how do i find large files on linux", "what is dnsi"]
+    },
+    "how do i find large files on linux": {
+      "answer": "Run: find / -type f -size +100M -exec ls -lh {} + 2>/dev/null (or du -ahx / | sort -rh | head -20 to see the biggest directories and files on the current filesystem).",
+      "related": ["how do i split a git commit", "what is dnsi"]
+    },
+    "can a printer ask questions": {
+      "answer": "Yes. Even 20-year-old firmware has gethostbyname(). In A-record mode (qtype A), DNSi packs the UTF-8 answer into IPv4 addresses (4 bytes per address, up to 256 bytes) so any device that can resolve a hostname can read the answer.",
+      "related": ["what can dnsi be used for", "what tools are available"]
+    },
+    "what is a txt record": {
+      "answer": "A DNS TXT record carries arbitrary human- or machine-readable text inside a DNS response (up to 255 bytes per character-string, concatenated in order). DNSi uses TXT records to return full UTF-8 answers.",
+      "related": ["what is dnsi", "can a printer ask questions"]
+    },
+    "what is dnsi history": {
+      "answer": "DNS has answered 'what address is this name?' since RFC 882 in 1983. DNSi extends that pattern to general questions and deterministic micro-tools while staying inside standard DNS wire rules.",
+      "related": ["what is dnsi", "who is dnsi for"]
+    },
+    "who is dnsi for": {
+      "answer": "Developers living in a terminal, people on captive or restricted networks, embedded/IoT engineers with gethostbyname-only devices, teams running an internal LAN knowledge box, and operators of sandboxed AI agents.",
+      "related": ["what can dnsi be used for", "how do i use dnsi"]
     }
   }
 }

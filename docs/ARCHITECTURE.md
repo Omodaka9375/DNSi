@@ -42,16 +42,16 @@ control over TXT chunking and CNAME answers.
 
 | File          | Role                                                                 |
 |---------------|----------------------------------------------------------------------|
-| `src/wire.ts` | DNS wire format: parse queries, encode TXT/CNAME answers, `chunkUtf8` |
-| `src/name.ts` | Question <-> QNAME codec, `parseDnsiQname` (zone dispatch)            |
+| `src/wire.ts` | DNS wire format: parse queries, encode TXT/CNAME/A answers, `chunkUtf8` |
+| `src/name.ts` | Question <-> QNAME codec, `parseDnsiQname` (zone dispatch), session/tool qname builders |
 | `src/server.ts` | UDP + TCP sockets, `Dnsi` resolver class, orchestration              |
-| `src/cache.ts` | LRU cache keyed by QNAME, TTL-aware ("answers served free")          |
+| `src/cache.ts` | LRU cache keyed by (qtype, qname), TTL-aware ("answers served free") |
 | `src/ratelimit.ts` | Per-client token bucket                                         |
 | `src/tools.ts` | The tool surface: time, echo, uuid, hash                             |
-| `src/backend.ts` | `EchoBackend` (zero-config) and `OpenAICompatBackend`              |
+| `src/backend.ts` | `EchoBackend`, `OpenAICompatBackend` (abort-timeout fetch), `CannedBackend` |
 | `src/index.ts` | Entrypoint: env -> options, one startup log line, nothing else       |
-| `src/query.ts` | Reference client (`queryUdp` / `queryTcp`)                           |
-| `src/ask-cli.ts` | `pnpm ask -- "question"`                                           |
+| `src/query.ts` | Reference client (`queryUdp` / `queryTcp`, transaction-ID checked)   |
+| `src/ask-cli.ts` | `dnsi-ask`: flags, `--tool`, auto-sessions, clean errors           |
 
 ## Request flow
 
@@ -59,14 +59,19 @@ control over TXT chunking and CNAME answers.
    pointers); malformed datagrams are silently dropped.
 2. Optional per-IP rate limit; an empty bucket answers SERVFAIL.
 3. `parseDnsiQname` classifies: foreign name -> NXDOMAIN, `tool.*` ->
-   tool call, bare zone -> usage, else question.
-4. Cache lookup by exact QNAME (LRU, expiry checked on read).
+   tool call, bare zone -> usage, else question. Unsupported qtypes
+   (anything but TXT, A, ANY) answer NODATA immediately; the backend is
+   never called for them (dual-stack resolvers send AAAA/HTTPS next to
+   every A/TXT query).
+4. Cache lookup by (qtype, qname) (LRU, expiry checked on read).
 5. Tool results are computed locally and synchronously. Questions go to
    the backend under an in-flight cap; over the cap answers SERVFAIL
-   (load shedding instead of queueing).
-6. The answer becomes one TXT record (UTF-8-safe 255-byte strings) plus
-   up to 3 related-question CNAMEs, cached for the answer TTL, then
-   encoded back onto the wire.
+   (load shedding instead of queueing). Long questions arrive as
+   session chunks collected under a per-zone key, byte-budgeted at
+   admission, and answered inline on the final chunk.
+6. The answer becomes one TXT record (UTF-8-safe 255-byte strings) or A
+   records for qtype A, plus up to 3 related-question CNAMEs (TXT only),
+   cached for the answer TTL, then encoded back onto the wire.
 
 ## Backends
 
@@ -75,33 +80,46 @@ control over TXT chunking and CNAME answers.
 - `OpenAICompatBackend` - any `/chat/completions` endpoint (OpenAI, Groq,
   OpenRouter, Ollama). The model is prompted to append a `RELATED:` line
   with 2-3 follow-up questions; those become the CNAME graph. HTTP
-  failures and shape-invalid JSON raise, surfacing as SERVFAIL.
+  failures and shape-invalid JSON raise, surfacing as SERVFAIL. Each
+  fetch carries an `AbortSignal.timeout` (default 15 s, `DNSI_LLM_TIMEOUT_MS`)
+  so a stalled provider cannot hold in-flight slots forever.
+- `CannedBackend` - prepared answers from a JSON file (`DNSI_ANSWERS`),
+  matched case/punctuation/whitespace-insensitively. Canonical (TTL
+  3600). Powers the public demo with no AI and no API key.
 
 ## Caching semantics
 
-- Key: the exact QNAME (lowercased by the wire decoder). No semantic
-  normalization in v0.1 - `hello world` and `HELLO WORLD` are different
-  names, which is honest since questions are case-sensitive strings.
+- Key: the exact (qtype, QNAME) pair (names arrive lowercased by the
+  wire decoder). `hello world` and `HELLO WORLD` are different names,
+  which is honest since questions are case-sensitive strings; the canned
+  backend does its own normalization for prepared questions.
 - Entry: records + expiry; expired entries are evicted on read.
 - Canonical tool answers (hash, echo) are cached 3600; `time` and `uuid`
   are never cached, since both must differ per call. LLM answers cache
-  for 60.
+  for 60. Session answers are never cached.
 
 ## Security posture
 
 - TCP-only mode (`DNSI_TCP_ONLY=1`) removes UDP spoofability.
+- UDP replies are capped at min(requestor-advertised, 1232) bytes, so
+  the server cannot be used as a reflected amplification tool.
+- Session state is hard-capped (10k entries, oldest-evicted), TCP
+  buffers are capped (128 KB per connection) and idle TCP sockets are
+  dropped after 30 s.
 - No per-user logging anywhere; the process prints one startup line.
 - Rate limiting is best-effort (UDP source addresses are spoofable);
-  it is abuse mitigation, not authentication. There is no auth in v0.1
-  by design: the API is read-only knowledge, and the cost control is
-  the token bucket plus the in-flight cap.
+  it is abuse mitigation, not authentication. There is no auth by
+  design: the API is read-only knowledge, and the cost control is the
+  per-zone token plus the token bucket and the in-flight cap.
 
 ## Testing
 
-`pnpm verify` = `tsc --noEmit` + 26 node:test tests: name codec
-roundtrips (ascii, unicode, length limits), wire chunking, the
-OpenAI-compatible backend against a mocked fetch, and end-to-end tests
-driving the real server over UDP and TCP (question + CNAME graph, tools,
-A mode reassembly, qtype-scoped caching, NXDOMAIN, rate limit, usage,
-512-byte TC truncation, EDNS0 large-payload UDP, long-question sessions,
-per-zone token REFUSED/accept, multi-zone routing).
+`pnpm verify` = `tsc --noEmit` + 54 node:test tests: name codec
+roundtrips (ascii, unicode, length limits, tool qnames), wire chunking,
+the OpenAI-compatible backend against a mocked fetch (including the
+abort timeout), and end-to-end tests driving the real server over UDP
+and TCP (question + CNAME graph, tools, A mode reassembly, qtype-scoped
+caching, NODATA for AAAA, NXDOMAIN, rate limit, usage, 512-byte TC
+truncation, EDNS0 large-payload UDP with the 1232 ceiling,
+long-question sessions incl. per-zone isolation and retry accounting,
+per-zone token REFUSED/accept, multi-zone routing, canned demo).

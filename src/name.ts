@@ -109,6 +109,27 @@ export function buildSessionQname(
   return fitQname(labels);
 }
 
+/** Build a tool QNAME: tool.<name>[.<encoded-args>][.t.<token>].ask.<zone> */
+export function buildToolQname(
+  tool: string,
+  args: string,
+  zone: string,
+  token?: string,
+): string | null {
+  const cleanTool = tool.trim().toLowerCase();
+  if (!/^[a-z0-9-]+$/.test(cleanTool)) return null;
+  if (Buffer.byteLength(args, "utf8") > MAX_QUESTION_BYTES) return null;
+  const labels = ["tool", cleanTool];
+  if (args.length > 0) {
+    const argLabels = packLabels(questionToTokens(args));
+    if (!argLabels) return null;
+    labels.push(...argLabels);
+  }
+  if (token) labels.push("t", token);
+  labels.push("ask", ...zone.split("."));
+  return fitQname(labels);
+}
+
 const CHUNK_TOKEN_RE = /^(?:-|[a-zA-Z0-9]|%[0-9A-Fa-f]{2})*$/;
 
 /**

@@ -481,6 +481,116 @@ test("rate limit is active with default production settings", async () => {
   }
 });
 
+test("unsupported qtypes (AAAA) answer NODATA without touching the backend", async () => {
+  const backend = new CountingBackend(new EchoBackend());
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend });
+  try {
+    const qn = qnameFor("nodata qtype test");
+    const before = backend.calls;
+    const res = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 28); // AAAA
+    assert.equal(res.rcode, 0); // NODATA: NOERROR, zero answers
+    assert.equal(res.txt, "");
+    assert.equal(res.a.length, 0);
+    assert.equal(backend.calls, before, "backend must not see an AAAA query");
+
+    // the ANY (255) qtype still gets a full answer
+    const any = await queryUdp(server.udpPort, qn, "127.0.0.1", 5000, 255);
+    assert.equal(any.rcode, 0);
+    assert.ok(any.txt.length > 0);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("sessions with the same sid in different zones do not collide", async () => {
+  const backend = new EchoBackend();
+  const server = await startServer({
+    zones: [{ zone: "one.dnsi.test" }, { zone: "two.dnsi.test" }],
+    udpPort: 0,
+    tcpPort: 0,
+    backend,
+  });
+  try {
+    const question = `collide test ${"z ".repeat(120)}`.trim(); // > 200 bytes
+    const chunks = chunkQuestion(question);
+    assert.ok(chunks && chunks.length >= 2);
+    const sid = "deadbeef";
+    // Upload all but the last chunk into zone ONE.
+    for (let i = 0; i < chunks.length - 1; i += 1) {
+      const qn = buildSessionQname(sid, i + 1, chunks.length, chunks[i] ?? "", "one.dnsi.test");
+      assert.ok(qn);
+      const res = await queryUdp(server.udpPort, qn);
+      assert.equal(res.rcode, 0);
+    }
+    // Complete the SAME sid in zone TWO: it must start a fresh session
+    // ("stored 1/total"), not inherit zone ONE's parts.
+    const finalTwo = buildSessionQname(
+      sid,
+      chunks.length,
+      chunks.length,
+      chunks[chunks.length - 1] ?? "",
+      "two.dnsi.test",
+    );
+    assert.ok(finalTwo);
+    const resTwo = await queryUdp(server.udpPort, finalTwo);
+    assert.equal(resTwo.rcode, 0);
+    assert.ok(
+      resTwo.txt.includes(`stored 1/${chunks.length}`),
+      `zone two must start fresh: ${resTwo.txt}`,
+    );
+    // and zone one still completes its own session correctly afterwards
+    const finalOne = buildSessionQname(
+      sid,
+      chunks.length,
+      chunks.length,
+      chunks[chunks.length - 1] ?? "",
+      "one.dnsi.test",
+    );
+    assert.ok(finalOne);
+    const resOne = await queryUdp(server.udpPort, finalOne);
+    assert.equal(resOne.rcode, 0);
+    assert.equal(resOne.txt, `DNSi (echo backend): ${question}`);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("re-sending an existing session part does not double-count its bytes", async () => {
+  const server = await startServer({ zones: [{ zone: ZONE }], udpPort: 0, tcpPort: 0, backend: new EchoBackend() });
+  try {
+    const question = `${"word ".repeat(40)}end`; // > 200 bytes
+    const chunks = chunkQuestion(question);
+    assert.ok(chunks && chunks.length >= 2);
+    const sid = "c0ffee00";
+    // Upload all parts except the last, sending part 1 twice (retry). The
+    // retry must be accepted and must not double-count part 1's bytes
+    // against the session budget.
+    for (let i = 0; i < chunks.length - 1; i += 1) {
+      const qn = buildSessionQname(sid, i + 1, chunks.length, chunks[i] ?? "", ZONE);
+      assert.ok(qn);
+      const res = await queryUdp(server.udpPort, qn);
+      assert.equal(res.rcode, 0, `part ${i + 1} must be accepted`);
+      if (i === 0) {
+        const retry = await queryUdp(server.udpPort, qn);
+        assert.equal(retry.rcode, 0, "part 1 retry must not be refused");
+      }
+    }
+    const finalQn = buildSessionQname(
+      sid,
+      chunks.length,
+      chunks.length,
+      chunks[chunks.length - 1] ?? "",
+      ZONE,
+    );
+    assert.ok(finalQn);
+    const answer = await queryUdp(server.udpPort, finalQn);
+    assert.equal(answer.rcode, 0);
+    assert.equal(answer.txt, `DNSi (echo backend): ${question}`);
+  } finally {
+    await server.stop();
+  }
+});
+
 test("canned demo server: prepared questions answered, others get the default, graph resolves", async () => {
   const canned = new CannedBackend(
     {

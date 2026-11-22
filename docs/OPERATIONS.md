@@ -18,10 +18,10 @@ pnpm ask -- "what is dnsi" --local
 pnpm ask -- "explain quantum computing" --local --tcp
 ```
 
-dig works as a client too (spaces are passed through into the QNAME):
+dig works as a client too (use the encoded name form; see PROTOCOL.md 2):
 
 ```bash
-dig +short TXT "What is DNSi?" @127.0.0.1 -p 5353
+dig +short TXT what-is-dnsi.ask.dnsi.test @127.0.0.1 -p 5353
 dig +short TXT tool.time.ask.dnsi.test @127.0.0.1 -p 5353
 ```
 
@@ -41,6 +41,7 @@ Port 53 needs privileges; develop on 5353.
 | `DNSI_LLM_BASE_URL` | - | OpenAI-compatible base URL (enables the LLM backend) |
 | `DNSI_LLM_API_KEY` | - | API key for that endpoint |
 | `DNSI_LLM_MODEL` | `gpt-4o-mini` | model id |
+| `DNSI_LLM_TIMEOUT_MS` | `15000` | abort timeout for LLM calls; a stalled provider cannot hold in-flight slots |
 | `DNSI_RATE_BURST` | `20` | token-bucket burst per client address (on by default) |
 | `DNSI_RATE_REFILL` | `1` | tokens refilled per second per client address |
 | `DNSI_RATE_LIMIT` | on | `off` disables the per-client rate limiter (not recommended) |
@@ -106,9 +107,33 @@ CNAMEs. Prepared answers are canonical and cache for an hour.
   with DoT/DoH.
 - No TLS layer (DoT/DoH fronting is a deployment concern, not built in).
 
+## CLI reference
+
+```bash
+dnsi-ask "your question" [options]
+dnsi-ask --tool <time|uuid|echo|hash> [args...] [options]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--local` | query 127.0.0.1:5353 (zone `dnsi.test`) instead of `dnsi.dev` |
+| `--server <host>` | nameserver address (default `dnsi.dev`, or `DNSI_HOST`) |
+| `--port <port>` | nameserver port (default 53, or `DNSI_PORT`) |
+| `--zone <zone>` | zone suffix (default `dnsi.dev`, or `DNSI_ZONE`) |
+| `--token <t>` | per-zone token (`DNSI_TOKEN`) |
+| `--tcp` | send the query over TCP |
+| `--a` | compact A-record answer (gethostbyname mode) |
+| `-h, --help` | usage |
+| `-v, --version` | version |
+
+`tool.<name>` as the first word is auto-detected, so
+`dnsi-ask tool.hash hello` works too. Questions over 200 bytes ride in
+sessions automatically; network failures print one clean line with an
+`--local` hint when the default public target is unreachable.
+
 ## Verification
 
 ```bash
-pnpm verify   # typecheck + 26 tests (codec, wire, e2e over UDP+TCP)
+pnpm verify   # typecheck + 54 tests (codec, wire, backends, e2e over UDP+TCP)
 pnpm build    # emit dist/
 ```

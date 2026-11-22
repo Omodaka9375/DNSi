@@ -45,8 +45,9 @@ in exactly those places, because it is nothing but a name lookup.
 Asking an AI over DNS exists as demo projects. DNSi is built as a service
 instead of a demo:
 
-- **Tool calls, not just chat.** `tool.time`, `tool.uuid`, `tool.hash` are
-  answered locally in microseconds and never touch the AI.
+- **Tool calls, not just chat.** `dnsi-ask --tool time` (or
+  `dig TXT tool.time.ask.<zone>`) answers locally in microseconds and
+  never touches the AI.
 - **Dumb devices first.** A plain `gethostbyname` call returns the answer
   text. No TXT parsing, no special client.
 - **A knowledge graph.** Every answer carries related questions as resolvable
@@ -72,6 +73,7 @@ can serve an open zone and a token-protected zone at the same time
 ```bash
 npx dnsi-ask "what is dnsi"   # asks the public demo server (dnsi.dev, once live):
                               # prepared answers about DNSi, no AI, no key needed
+npx dnsi-ask --tool time      # built-in tools: time, uuid, echo, hash
 ```
 
 Run your own:
@@ -116,6 +118,8 @@ Questions and answers are plain text, so do not send passwords through it.
 npm install -g dnsi
 dnsi-ask "your question"    # asks the public instance (dnsi.dev) by default
 dnsi-ask "your question" --local   # asks a server on your own machine
+dnsi-ask --tool time        # built-in tools: time, uuid, echo, hash
+dnsi-ask --help             # all flags: --server, --port, --zone, --token, --tcp, --a
 dnsi-server                 # run your own nameserver
 ```
 

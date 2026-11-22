@@ -747,7 +747,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
 
         // 3. wire events, revealed one by one
         const lines = [
-          { icon: 'Q', name: 'TXT', arg: 'what-is-the-time.ask.dnsi.dev' },
+          { icon: 'Q', name: 'TXT', arg: 'tool.time.ask.dnsi.dev' },
           { icon: 'A', name: 'answer', arg: '', diff: true },
           { icon: '>', name: 'CNAME', arg: 'what-is-dnsi.ask.dnsi.dev' },
         ];
@@ -792,7 +792,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         for (;;) {
           const els = frame();
           if (REDUCED) {
-            els.prompt.querySelector('.t-cmd').textContent = 'npx dnsi-ask "what is the time"';
+            els.prompt.querySelector('.t-cmd').textContent = 'npx dnsi-ask --tool time';
             els.thinking.style.display = '';
             for (const t of els.toolEls) t.classList.add('in');
             els.result.style.display = '';
@@ -800,7 +800,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
             return;
           }
           await sleep(500);
-          await typeInto(els.prompt, 'npx dnsi-ask "what is the time"', 34);
+          await typeInto(els.prompt, 'npx dnsi-ask --tool time', 34);
           await sleep(280);
           els.thinking.style.display = '';
           await sleep(700);

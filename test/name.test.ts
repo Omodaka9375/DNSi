@@ -2,10 +2,34 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   buildQuestionQname,
+  buildToolQname,
   decodeEncodedText,
   parseDnsiQname,
 } from "../src/name.js";
 import { chunkUtf8, decodeNameAt } from "../src/wire.js";
+
+test("buildToolQname encodes args and token, parses back", () => {
+  const zone = "dnsi.test";
+  const qname = buildToolQname("echo", "hello world", zone, "s3cret");
+  assert.ok(qname);
+  // the space encodes as '-', the zone token embeds as t.<token>
+  assert.ok(qname.startsWith("tool.echo.hello-world.t.s3cret.ask.dnsi.test"));
+  const parsed = parseDnsiQname(qname, [{ zone, token: "s3cret" }]);
+  assert.ok(parsed);
+  if (parsed.kind === "tool") {
+    assert.equal(parsed.tool, "echo");
+    assert.equal(parsed.args, "hello world");
+  } else {
+    assert.fail("expected tool query");
+  }
+});
+
+test("buildToolQname: no args, unknown tool name rejected, oversize args rejected", () => {
+  const zone = "dnsi.test";
+  assert.equal(buildToolQname("time", "", zone), `tool.time.ask.${zone}`);
+  assert.equal(buildToolQname("bad tool!", "", zone), null);
+  assert.equal(buildToolQname("echo", "a".repeat(201), zone), null);
+});
 
 test("question roundtrip preserves ascii case and punctuation", () => {
   const zone = "dnsi.test";

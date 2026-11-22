@@ -137,6 +137,7 @@ the same effect for the whole internet.
 
 ```text
 tool.<name>.<args-encoded>.ask.<zone>
+tool.<name>.<args-encoded>.t.<token>.ask.<zone>
 ```
 
 | Tool   | Args      | Result                        | Canonical |
@@ -151,7 +152,13 @@ output as A records, so `gethostbyname("tool.time.ask.dnsi.test")`
 returns the timestamp bytes. Unknown tools answer with a TXT error
 message listing available tools (rcode NOERROR, so the client sees the
 hint). `args` are encoded with the same rules as questions (a literal
-`-` in args encodes as `%2D`).
+`-` in args encodes as `%2D`), up to the 200-byte question ceiling, and
+carry the zone token the same way questions do.
+
+Reference builders: `buildQuestionQname` (questions), `buildToolQname`
+(tools), and `buildSessionQname` (sessions) in `src/name.ts`. The CLI
+invokes tools directly: `dnsi-ask --tool time`, or
+`dnsi-ask tool.hash hello` (the `tool.<name>` prefix is auto-detected).
 
 ## 4.5 Sessions: questions over 200 bytes
 
@@ -174,7 +181,11 @@ sess.<sid>.<n>.<total>.<encoded-chunk>[.t.<token>].ask.<zone>
 - Sessions expire after 10 minutes; max 32 parts, and the assembled
   question is capped at 1000 bytes server-side (a part that would cross
   the cap answers REFUSED, and the backend is never called). Session
-  answers are never cached (each session id is unique).
+  answers are never cached (each session id is unique). Re-sending an
+  already-stored part is accepted and replaces it; its bytes are counted
+  once against the budget.
+- Session state is scoped per zone: the same `<sid>` used in two zones
+  concurrently is two independent sessions.
 - The reference client switches to session mode automatically for
   questions over 200 bytes: `pnpm ask -- "long question..."`.
 
@@ -193,6 +204,7 @@ and cost, not determined adversaries.
 |--------------------------------------------|------------------------------|
 | Name outside all zones                     | NXDOMAIN (rcode 3)           |
 | Tokenized zone queried without its token   | REFUSED (rcode 5)            |
+| Supported qtype other than TXT/A/ANY (e.g. AAAA) | NOERROR with 0 answers (NODATA); the backend is not called |
 | Rate limit exceeded for the client address | SERVFAIL (rcode 2)           |
 | In-flight LLM cap exhausted                | SERVFAIL (rcode 2), load shed |
 | Backend raised (upstream error)            | SERVFAIL (rcode 2)           |
@@ -209,17 +221,20 @@ and cost, not determined adversaries.
 - No name compression is emitted. Compression pointers are followed when
   reading.
 
-## 7. Limits (v0.2)
+## 7. Limits (v0.3)
 
-- Question: 200 UTF-8 bytes max. There is no session/continuation
-  mechanism for longer questions.
+- Direct questions: 200 UTF-8 bytes max; longer questions (up to ~1000
+  bytes) ride in sessions (section 4.5).
 - A-mode answers: 64 A records = 256 answer bytes; longer answers are
-  silently cut at the cap (the client sees truncated text).
+  cut at the cap (the client sees truncated text).
 - Long TXT answers exceed classic 512-byte UDP; DNSi sets TC and clients
   retry over TCP, or resolvers use EDNS0.
 - Answers are unencrypted plaintext: DNSi carries no secrets, ever.
 - Answer owner names use a compression pointer (offset 12); CNAME rdata
   targets are uncompressed. Compression pointers are followed when read.
+- The LLM backend aborts upstream calls after a timeout (default 15 s,
+  `DNSI_LLM_TIMEOUT_MS`) so a stalled provider cannot exhaust the
+  in-flight cap.
 
 ## 8. Reference transcript (demo mode; the server repeats the question back)
 

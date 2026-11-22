@@ -8,6 +8,7 @@
 export const RR_A = 1;
 export const RR_CNAME = 5;
 export const RR_TXT = 16;
+export const RR_ANY = 255;
 export const CLASS_IN = 1;
 
 /** Flag in the response header: answer too large for UDP, retry over TCP. */

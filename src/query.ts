@@ -46,7 +46,8 @@ export async function queryUdp(
   qtype: number = RR_TXT,
   ednsPayload?: number,
 ): Promise<DnsiResponse> {
-  const query = buildQuery(qname, qtype, undefined, ednsPayload);
+  const qid = Math.floor(Math.random() * 0xffff);
+  const query = buildQuery(qname, qtype, qid, ednsPayload);
   if (!query) throw new Error(`cannot encode qname: ${qname}`);
   const socket = dgram.createSocket("udp4");
   try {
@@ -56,13 +57,10 @@ export async function queryUdp(
         reject(new Error(`timeout querying ${qname}`));
       }, timeoutMs);
       socket.on("message", (msg) => {
+        const parsed = parseResponse(msg);
+        if (!parsed || parsed.id !== qid) return;
         clearTimeout(timer);
         socket.close();
-        const parsed = parseResponse(msg);
-        if (!parsed) {
-          reject(new Error("unparseable response"));
-          return;
-        }
         resolve({
           rcode: parsed.rcode,
           tc: parsed.tc,
@@ -94,7 +92,8 @@ export async function queryTcp(
   qtype: number = RR_TXT,
   ednsPayload?: number,
 ): Promise<DnsiResponse> {
-  const query = buildQuery(qname, qtype, undefined, ednsPayload);
+  const qid = Math.floor(Math.random() * 0xffff);
+  const query = buildQuery(qname, qtype, qid, ednsPayload);
   if (!query) throw new Error(`cannot encode qname: ${qname}`);
   const framed = Buffer.alloc(2 + query.length);
   framed.writeUInt16BE(query.length, 0);
@@ -117,7 +116,7 @@ export async function queryTcp(
         const msg = buf.subarray(2, 2 + len);
         socket.destroy();
         const parsed = parseResponse(msg);
-        if (!parsed) {
+        if (!parsed || parsed.id !== qid) {
           reject(new Error("unparseable response"));
           return;
         }

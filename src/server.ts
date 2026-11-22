@@ -17,6 +17,8 @@ import {
   parseQuery,
   RCODE,
   RR_A,
+  RR_ANY,
+  RR_TXT,
   UDP_MAX,
   chunkUtf8,
   type AnswerRecord,
@@ -164,6 +166,12 @@ export class Dnsi {
     const parsed = parseDnsiQname(q.qname, this.opts.zones);
     if (!parsed) return { records: [], rcode: RCODE.NXDOMAIN };
     if (parsed.kind === "unauthorized") return { records: [], rcode: RCODE.REFUSED };
+    // Dual-stack resolvers (getaddrinfo) send AAAA/HTTPS alongside A/TXT.
+    // Answer NODATA (NOERROR, 0 records) immediately without touching the
+    // backend or mutating session state.
+    if (q.qtype !== RR_TXT && q.qtype !== RR_A && q.qtype !== RR_ANY) {
+      return { records: [], rcode: RCODE.NOERROR };
+    }
 
     const cached = this.cache.get(cacheKey(q.qtype, q.qname));
     if (cached) return { records: cached, rcode: RCODE.NOERROR };
@@ -225,16 +233,19 @@ export class Dnsi {
       }
     }
 
-    let entry = this.sessions.get(sid);
+    const sessionKey = `${zone.zone}:${sid}`;
+    let entry = this.sessions.get(sessionKey);
     if (!entry || entry.total !== total) {
       entry = { parts: new Map(), bytes: new Map(), total, created: now };
     }
     const chunkBytes = encodedByteLength(encoded) ?? 0;
-    let sum = 0;
-    for (const [k, v] of entry.bytes) sum += k === n ? chunkBytes : v;
+    let sum = chunkBytes;
+    for (const [k, v] of entry.bytes) {
+      if (k !== n) sum += v;
+    }
     // The documented session budget is enforced at admission time, so the
     // assembled question handed to the backend can never exceed it.
-    if (sum + chunkBytes > MAX_SESSION_QUESTION_BYTES) {
+    if (sum > MAX_SESSION_QUESTION_BYTES) {
       return {
         records: [
           txtRecord(
@@ -248,7 +259,7 @@ export class Dnsi {
     entry.created = now;
     entry.parts.set(n, encoded);
     entry.bytes.set(n, chunkBytes);
-    this.sessions.set(sid, entry);
+    this.sessions.set(sessionKey, entry);
 
     if (entry.parts.size < total) {
       return {
@@ -264,7 +275,7 @@ export class Dnsi {
       if (p === undefined) break;
       pieces.push(p);
     }
-    this.sessions.delete(sid);
+    this.sessions.delete(sessionKey);
     const question = decodeEncodedText(pieces.join(""));
     if (question.length === 0) return { records: [], rcode: RCODE.NXDOMAIN };
     return this.question(question, q.qname, q.qtype, zone, false);

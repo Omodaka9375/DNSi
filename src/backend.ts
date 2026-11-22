@@ -74,6 +74,8 @@ function splitRelated(content: string): { answer: string; related: string[] } {
   return { answer: kept.join("\n").trim(), related };
 }
 
+export const DEFAULT_LLM_TIMEOUT_MS = 15_000;
+
 export class OpenAICompatBackend implements Backend {
   readonly name = "openai-compat";
 
@@ -82,6 +84,7 @@ export class OpenAICompatBackend implements Backend {
     private readonly apiKey: string,
     private readonly model: string,
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly timeoutMs: number = DEFAULT_LLM_TIMEOUT_MS,
   ) {}
 
   async ask(question: string): Promise<BackendAnswer> {
@@ -100,6 +103,7 @@ export class OpenAICompatBackend implements Backend {
         ],
         max_tokens: 500,
       }),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!res.ok) throw new Error(`LLM request failed: HTTP ${res.status}`);
     const data: unknown = await res.json();
@@ -119,7 +123,10 @@ export function selectBackend(env: NodeJS.ProcessEnv = process.env): Backend {
   const base = env.DNSI_LLM_BASE_URL;
   const key = env.DNSI_LLM_API_KEY;
   if (typeof base === "string" && base.length > 0 && typeof key === "string" && key.length > 0) {
-    return new OpenAICompatBackend(base, key, env.DNSI_LLM_MODEL ?? "gpt-4o-mini");
+    const rawTimeout = Number(env.DNSI_LLM_TIMEOUT_MS);
+    const timeoutMs =
+      Number.isFinite(rawTimeout) && rawTimeout >= 100 ? rawTimeout : DEFAULT_LLM_TIMEOUT_MS;
+    return new OpenAICompatBackend(base, key, env.DNSI_LLM_MODEL ?? "gpt-4o-mini", fetch, timeoutMs);
   }
   return new EchoBackend();
 }
