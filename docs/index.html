@@ -269,6 +269,45 @@ table.blocks tr.group:first-child td { padding-top: 4px; }
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 
+/* ---- client tab switcher (CLI / dig / C / Python) ---- */
+.codebox .ctabs { display: flex; margin-right: 70px; }
+.ctab {
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  background: var(--paper); color: var(--ink-3);
+  border: 1px solid var(--rule); border-right: 0; padding: 6px 12px; cursor: pointer;
+}
+.ctab:last-child { border-right: 1px solid var(--rule); }
+.ctab:hover { color: var(--ink); }
+.ctab[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.codebox pre[hidden] { display: none; }
+
+/* ---- glyph chips in the use table ---- */
+.u-chip {
+  display: inline-block; width: 20px; height: 20px; line-height: 20px;
+  text-align: center; font-family: var(--mono); font-size: 11px;
+  background: var(--paper-2); border: 1px solid var(--rule); color: var(--ink-2);
+  margin-right: 10px; vertical-align: -4px;
+}
+
+/* ---- live ask box (DNS-over-HTTPS from the page) ---- */
+.askbox { border: 1px solid var(--rule-dark); background: var(--paper-2); margin-top: 28px; max-width: 680px; }
+.askbox-head { padding: 10px 14px; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.askrow { display: flex; }
+.askrow input {
+  flex: 1; min-width: 0; border: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--mono); font-size: 0.9rem; padding: 12px 14px; outline: none;
+}
+.askrow input::placeholder { color: var(--ink-4); }
+.askrow button {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; background: var(--ink); color: var(--paper); border: 0; padding: 0 20px; cursor: pointer;
+}
+.askrow button:hover { background: var(--paper); color: var(--ink); outline: 1px solid var(--ink); outline-offset: -1px; }
+.askout { padding: 12px 14px; font-family: var(--mono); font-size: 0.8rem; line-height: 1.6; color: var(--ink-2); border-top: 1px solid var(--rule); min-height: 1.6em; }
+.askout .a-ok { color: var(--ink); }
+.askout .a-dim { color: var(--ink-4); }
+
 /* ---- code blocks with copy ---- */
 .codebox { position: relative; margin: 0 0 14px; }
 .codebox pre {
@@ -427,13 +466,44 @@ html[data-mode="dark"] footer p { color: #909090; }
           The question travels inside the name, and the answer comes back in the reply.
         </p>
         <div class="codebox">
-<pre>$ npx dnsi-ask "what is dnsi"
+          <div class="ctabs" role="tablist" aria-label="Client examples">
+            <button class="ctab" type="button" data-pane="cli" aria-pressed="true">CLI</button>
+            <button class="ctab" type="button" data-pane="dig" aria-pressed="false">dig</button>
+            <button class="ctab" type="button" data-pane="c" aria-pressed="false">C</button>
+            <button class="ctab" type="button" data-pane="py" aria-pressed="false">Python</button>
+          </div>
+<pre data-pane="cli">$ npx dnsi-ask "what is dnsi"
 A question box that rides on DNS: ask by name, get the answer back as TXT records.
 
 related:
   dig TXT what-is-dnsi-history.ask.dnsi.dev
-  dig TXT who-is-dnsi-for.ask.dnsi.dev</pre>
-          <button class="copy" type="button" aria-label="Copy command">Copy</button>
+  dig TXT who-is-dnsi-for.ask.dnsi.dev
+
+$ npx dnsi-ask --tool time
+2026-11-22T10:23:15.832Z</pre>
+<pre data-pane="dig" hidden>$ dig +short TXT what-is-dnsi.ask.dnsi.dev
+"A question box that rides on DNS: ask by name, get the answer"
+ "back as TXT records."
+
+$ dig +short TXT tool.time.ask.dnsi.dev
+"2026-11-22T10:23:15.832Z"</pre>
+<pre data-pane="c" hidden>/* the complete client: gethostbyname returns the answer bytes */
+struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
+/* h->h_addr_list = UTF-8 answer, 4 bytes per address */</pre>
+<pre data-pane="py" hidden>&gt;&gt;&gt; import socket
+&gt;&gt;&gt; _, _, addrs = socket.gethostbyname_ex("what-is-dnsi.ask.dnsi.test")
+&gt;&gt;&gt; print(bytes(int(o) for a in addrs for o in a.split(".")))
+b'A question box that rides on DNS: ...'</pre>
+          <button class="copy" type="button" aria-label="Copy example">Copy</button>
+        </div>
+
+        <div class="askbox" id="askbox">
+          <div class="askbox-head">live: resolve from this page over DNS-over-HTTPS</div>
+          <div class="askrow">
+            <input id="askInput" type="text" placeholder="what is dnsi" spellcheck="false" aria-label="Question to resolve over DNS">
+            <button id="askBtn" type="button">Ask</button>
+          </div>
+          <div class="askout" id="askOut" aria-live="polite">The public instance answers here the moment dnsi.dev is live. Until then: run your own (window 1 above) and ask it over your LAN.</div>
         </div>
         <p class="lead" style="margin: 24px 0 0;">
           Related questions come back as CNAME records, so one answer is also a pointer into
@@ -461,21 +531,29 @@ related:
           <thead><tr><th>Situation</th><th>What happens</th></tr></thead>
           <tbody>
             <tr class="group"><td colspan="2">You</td></tr>
-            <tr><td>terminal</td><td><b>One command, no browser.</b> You live in a shell; the answer lands in it. No window, no login, no tab.</td></tr>
-            <tr><td>blocked</td><td><b>Hostile networks.</b> Hotel wifi, airplane wifi, locked-down offices. They block apps and sites; DNS stays open or nothing loads at all.</td></tr>
-            <tr><td>offline</td><td><b>Local first.</b> Run it on your own machine and the demo answers need no key and no internet.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">$</span>terminal</td><td><b>One command, no browser.</b> You live in a shell; the answer lands in it. No window, no login, no tab.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">!</span>blocked</td><td><b>Hostile networks.</b> Hotel wifi, airplane wifi, locked-down offices. They block apps and sites; DNS stays open or nothing loads at all.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">o</span>offline</td><td><b>Local first.</b> Run it on your own machine and the demo answers need no key and no internet.</td></tr>
 
-            <tr class="group"><td colspan="2">Devices</td></tr>
-            <tr><td>dumb</td><td><b>Anything with a resolver.</b> A printer, a sensor, 20-year-old firmware. It cannot run apps; it can resolve a name, so it can ask.</td></tr>
-            <tr><td>tools</td><td><b>Four built-ins.</b> <code>time</code>, <code>echo</code>, <code>uuid</code>, <code>hash</code> answer locally in microseconds, never touching the model.</td></tr>
-            <tr><td>clientless</td><td><b>dig, nslookup, Python, C, BusyBox.</b> If it can resolve a name, it is already a DNSi client.</td></tr>
+            <tr class="group"><td colspan="2">Devices (IoT)</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">#</span>iot</td><td><b>Anything with a resolver.</b> A clock, a UUID, a hash and AI answers for a printer, a sensor, 20-year-old firmware - no crypto lib, no HTTP client, no firmware update.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">&gt;</span>classes</td><td><b>PLCs, printers, sensors, set-top boxes, routers.</b> If it ships <code>gethostbyname</code>, it is a DNSi client (see <a href="read.html?doc=AGENTS.md">AGENTS.md</a>).</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">t</span>tools</td><td><b>Four built-ins.</b> <code>time</code>, <code>echo</code>, <code>uuid</code>, <code>hash</code> answer locally in microseconds, never touching the model.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">:</span>clientless</td><td><b>dig, nslookup, Python, C, BusyBox.</b> If it can resolve a name, it is already a DNSi client.</td></tr>
 
             <tr class="group"><td colspan="2">Teams and agents</td></tr>
-            <tr><td>knowledge</td><td><b>One place to ask.</b> "How do I connect to the vpn" becomes a name anyone in the office can look up. IT writes it once.</td></tr>
-            <tr><td>agents</td><td><b>Sanctioned channel.</b> A sandboxed agent that may only resolve DNS gets a question channel and a tool channel, rate limited and log-free.</td></tr>
-            <tr><td>tokens</td><td><b>Open and private zones at once.</b> One server, many zones. A zone can require a token inside the name; wrong or missing is refused.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">k</span>knowledge</td><td><b>One place to ask.</b> "How do I connect to the vpn" becomes a name anyone in the office can look up. IT writes it once.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">a</span>agents</td><td><b>Sanctioned channel.</b> A sandboxed agent that may only resolve DNS gets a question channel and a tool channel, rate limited and log-free.</td></tr>
+            <tr><td><span class="u-chip" aria-hidden="true">*</span>tokens</td><td><b>Open and private zones at once.</b> One server, many zones. A zone can require a token inside the name; wrong or missing is refused.</td></tr>
           </tbody>
         </table>
+
+        <div class="codebox" style="margin-top: 28px;">
+<pre>/* the complete IoT client: no SDK, no TLS stack, no JSON parser */
+struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
+/* h->h_addr_list = UTF-8 answer, 4 bytes per address, strip NULs */</pre>
+          <button class="copy" type="button" aria-label="Copy the C example">Copy</button>
+        </div>
       </div>
     </section>
 
@@ -659,7 +737,9 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       'what is dnsi', 'why is the sky blue', 'how do I split a git commit',
       'what is the time', 'hash of hello', 'how do I find large files on linux',
       'give me a uuid', 'what is dnsi worth running', 'is this an ai',
-      'can a printer ask questions', 'what is a txt record', 'how do i connect to the vpn',
+      'can a printer ask questions', 'hash of hello from a PLC',
+      'gethostbyname: what-is-dnsi.ask.dnsi.test', 'what is a txt record',
+      'how do i connect to the vpn',
     ];
     const track = document.getElementById('marqueeTrack');
     if (track) {
@@ -671,7 +751,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
     /* ---- Copy buttons ---- */
     for (const btn of document.querySelectorAll('.codebox .copy')) {
       btn.addEventListener('click', async () => {
-        const pre = btn.parentElement.querySelector('pre');
+        const pre = Array.from(btn.parentElement.querySelectorAll('pre')).find((p) => !p.hidden) || btn.parentElement.querySelector('pre');
         if (!pre) return;
         const text = pre.innerText;
         try {
@@ -690,6 +770,61 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         btn.textContent = 'Copied';
         setTimeout(() => { btn.dataset.done = '0'; btn.textContent = 'Copy'; }, 1600);
       });
+    }
+
+    /* ---- Client tab switcher (CLI / dig / C / Python) ---- */
+    for (const tabs of document.querySelectorAll('.ctabs')) {
+      const box = tabs.closest('.codebox');
+      tabs.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.ctab');
+        if (!btn || !box) return;
+        for (const t of tabs.querySelectorAll('.ctab')) t.setAttribute('aria-pressed', String(t === btn));
+        for (const p of box.querySelectorAll('pre[data-pane]')) p.hidden = p.dataset.pane !== btn.dataset.pane;
+      });
+    }
+
+    /* ---- Live ask over DNS-over-HTTPS (works from GitHub Pages, no backend) ----
+       Server text is injected with textContent only, never innerHTML. */
+    function encodeQname(question, zone) {
+      const bytes = new TextEncoder().encode(question);
+      let out = '';
+      for (const b of bytes) {
+        if (b === 0x20) out += '-';
+        else if ((b >= 0x61 && b <= 0x7a) || (b >= 0x30 && b <= 0x39)) out += String.fromCharCode(b);
+        else out += '%' + b.toString(16).toUpperCase().padStart(2, '0');
+      }
+      return out + '.ask.' + zone;
+    }
+
+    async function askLive() {
+      const input = document.getElementById('askInput');
+      const out = document.getElementById('askOut');
+      const q = (input.value || '').trim();
+      if (!q) return;
+      out.textContent = 'resolving ' + q + ' ...';
+      const qname = encodeQname(q, 'dnsi.dev');
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(qname) + '&type=TXT', { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (j.Status !== 0) throw new Error('rcode ' + j.Status);
+        const txts = (j.Answer || []).filter((a) => a.type === 16).map((a) => (a.data || '').replace(/"/g, '')).join('');
+        if (!txts) throw new Error('no TXT answer');
+        out.innerHTML = '<span class="a-ok"></span>';
+        out.firstChild.textContent = txts;
+      } catch (e) {
+        out.innerHTML = '<span class="a-dim"></span>';
+        out.firstChild.textContent = 'The public instance is not answering yet. Run your own (window 1 above) and ask it locally: npx dnsi-ask "' + q + '" --local';
+      }
+    }
+
+    const askBtn = document.getElementById('askBtn');
+    if (askBtn) {
+      askBtn.addEventListener('click', askLive);
+      document.getElementById('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') askLive(); });
     }
 
     /* ---- Scroll reveal (animation only, never hides content) ---- */
