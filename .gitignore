@@ -5,3 +5,4 @@ dist/
 *.log
 .tmp-deploy/
 .git-commit-msg.tmp
+.tmp-stats.json
