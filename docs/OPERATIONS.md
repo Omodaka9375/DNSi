@@ -109,7 +109,7 @@ for an hour.
   encrypt a legacy device's separate path to its recursive resolver, and
   upstream resolvers may still observe or log names.
 
-## Known limitations (v0.4)
+## Known limitations (v1.0)
 
 - Direct questions max 200 bytes; session mode raises this to ~1000
   bytes (32 chunks, 10-minute expiry, answers not cached).

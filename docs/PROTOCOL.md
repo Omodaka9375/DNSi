@@ -254,7 +254,7 @@ and cost, not determined adversaries.
 - No name compression is emitted. Compression pointers are followed when
   reading.
 
-## 7. Limits (v0.4)
+## 7. Limits (v1.0)
 
 - Direct questions: 200 UTF-8 bytes max; longer questions (up to ~1000
   bytes) ride in sessions (section 4.5).
