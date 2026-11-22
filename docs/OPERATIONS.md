@@ -45,9 +45,20 @@ Port 53 needs privileges; develop on 5353.
 | `DNSI_RATE_BURST` | `20` | token-bucket burst per client address (on by default) |
 | `DNSI_RATE_REFILL` | `1` | tokens refilled per second per client address |
 | `DNSI_RATE_LIMIT` | on | `off` disables the per-client rate limiter (not recommended) |
+| `DNSI_STATS` | off | `1` serves aggregate (anonymous) counters at `stats.ask.<zone>` TXT |
+| `DNSI_STATS_FILE` | - | persist counters across restarts; load on boot, save every 5 min |
+| `DNSI_DOH_PORT` | off | serve DoH (RFC 8484) wire format at `/dns-query` on this port |
+| `DNSI_DOT_PORT` | off | serve DoT (RFC 7858) on this port (needs TLS cert + key) |
+| `DNSI_TLS_CERT` / `DNSI_TLS_KEY` | - | PEM files for DoH/DoT TLS termination |
 
 Secrets live in the environment, never in the repo. Demo mode
 needs nothing and is safe for demos.
+
+**Counters are anonymous by design**: metric names and integers only, no
+addresses, no questions, nothing written anywhere unless
+`DNSI_STATS_FILE` is set (then a single JSON blob, no history, no
+per-client data). The public instance runs with `DNSI_STATS=1` so
+`dig +short TXT stats.ask.dnsi.dev` shows what the site's badge shows.
 
 ## Demo server (prepared answers, no AI)
 

@@ -4,6 +4,7 @@ import {
   buildQuestionQname,
   buildToolQname,
   decodeEncodedText,
+  friendlyQuestion,
   parseDnsiQname,
 } from "../src/name.js";
 import { chunkUtf8, decodeNameAt } from "../src/wire.js";
@@ -29,6 +30,55 @@ test("buildToolQname: no args, unknown tool name rejected, oversize args rejecte
   assert.equal(buildToolQname("time", "", zone), `tool.time.ask.${zone}`);
   assert.equal(buildToolQname("bad tool!", "", zone), null);
   assert.equal(buildToolQname("echo", "a".repeat(201), zone), null);
+});
+
+test("friendlyQuestion: strips human-typing punctuation", () => {
+  // trailing sentence punctuation
+  assert.equal(friendlyQuestion("what is dnsi?"), "what is dnsi");
+  assert.equal(friendlyQuestion("what is dnsi?!"), "what is dnsi");
+  assert.equal(friendlyQuestion("what is dnsi? "), "what is dnsi");
+  // wrapping hyphens and dashes
+  assert.equal(friendlyQuestion("- what is dnsi -"), "what is dnsi");
+  assert.equal(friendlyQuestion("--what is dnsi--"), "what is dnsi");
+  // interior hyphens and question marks are content and survive
+  assert.equal(friendlyQuestion("how-do-i-split-a-commit?"), "how-do-i-split-a-commit");
+  assert.equal(friendlyQuestion("why? really?"), "why? really");
+  // a question made only of punctuation is fully stripped; the parser
+  // treats the empty result as malformed (NXDOMAIN), never an ask
+  assert.equal(friendlyQuestion("???"), "");
+  assert.equal(friendlyQuestion(""), "");
+});
+
+test("friendly mode: typed punctuation variants parse to the same question", () => {
+  const zone = "dnsi.test";
+  // note: '-' decodes to a space in the DNSi encoding, so hyphens never
+  // appear in the decoded question itself
+  for (const typed of ["what-is-dnsi", "what-is-dnsi?", "what-is-dnsi.?"]) {
+    const parsed = parseDnsiQname(`${typed}.ask.${zone}`, [{ zone }]);
+    assert.ok(parsed);
+    if (parsed.kind === "question") {
+      assert.equal(parsed.question, "what is dnsi", `typed: ${typed}`);
+    } else {
+      assert.fail(`expected question for ${typed}`);
+    }
+  }
+  // doubled hyphens decode to doubled spaces (they are literal spaces);
+  // the canned backend's whitespace-collapsing matcher still hits them
+  const dbl = parseDnsiQname(`what--is--dnsi.ask.${zone}`, [{ zone }]);
+  assert.ok(dbl && dbl.kind === "question");
+  assert.equal(dbl.question, "what  is  dnsi");
+});
+
+test("friendly mode: encoded punctuation inside %XX survives", () => {
+  const zone = "dnsi.test";
+  // "? really" as a question: the interior %3F must survive, only a
+  // TRAILING ? is stripped
+  const q = "why? really";
+  const qname = buildQuestionQname(q, zone);
+  assert.ok(qname);
+  const parsed = parseDnsiQname(qname, [{ zone }]);
+  assert.ok(parsed && parsed.kind === "question");
+  assert.equal(parsed.question, "why? really");
 });
 
 test("question roundtrip preserves ascii case and punctuation", () => {

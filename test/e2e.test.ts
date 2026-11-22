@@ -49,7 +49,9 @@ test("udp: question answered, related questions hinted in the TXT", async () => 
   try {
     const first = await queryUdp(server.udpPort, qnameFor("What is DNSi?"));
     assert.equal(first.rcode, 0);
-    assert.ok(first.txt.includes("DNSi (echo backend): What is DNSi?"));
+    // friendly-mode note: the trailing "?" is stripped server-side, so the
+    // echo drops it
+    assert.ok(first.txt.startsWith("DNSi (echo backend): What is DNSi"));
     assert.equal(first.cnames.length, 0, "no CNAME records: RFC 1034 3.6.2 exclusivity");
     const hints = [...first.txt.matchAll(/dig TXT (\S+)/g)].map((m) => m[1]);
     assert.ok(hints.length >= 1, `expected related hints, got: ${first.txt}`);
@@ -155,7 +157,7 @@ test("A mode: gethostbyname emulation reassembles the answer text", async () => 
     assert.equal(res.rcode, 0);
     assert.ok(res.a.length >= 1);
     assert.equal(res.txt, ""); // A mode carries no TXT
-    assert.equal(aRecordsToText(res.a), "DNSi (echo backend): What is DNSi?");
+    assert.equal(aRecordsToText(res.a), "DNSi (echo backend): What is DNSi");
     // tools work the same way for constrained devices
     const hash = await queryUdp(server.udpPort, `tool.hash.hi.ask.${ZONE}`, "127.0.0.1", 5000, RR_A);
     assert.equal(aRecordsToText(hash.a).length, 64);

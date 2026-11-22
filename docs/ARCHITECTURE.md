@@ -44,7 +44,9 @@ control over TXT chunking and CNAME answers.
 |---------------|----------------------------------------------------------------------|
 | `src/wire.ts` | DNS wire format: parse queries, encode TXT/CNAME/A answers, `chunkUtf8` |
 | `src/name.ts` | Question <-> QNAME codec, `parseDnsiQname` (zone dispatch), session/tool qname builders |
-| `src/server.ts` | UDP + TCP sockets, `Dnsi` resolver class, orchestration              |
+| `src/server.ts` | UDP + TCP + DoT sockets, `Dnsi` resolver class, orchestration        |
+| `src/doh.ts` | DNS-over-HTTPS front (RFC 8484 GET + POST) over the same handler       |
+| `src/counters.ts` | Anonymous aggregate counters (stats.ask.<zone>, optional file persistence) |
 | `src/cache.ts` | LRU cache keyed by (qtype, qname), TTL-aware ("answers served free") |
 | `src/ratelimit.ts` | Per-client token bucket                                         |
 | `src/tools.ts` | The tool surface: time, echo, uuid, hash                             |

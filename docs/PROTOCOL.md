@@ -34,12 +34,20 @@ under one or more zones (default `dnsi.test`):
 sess.<sid>.<n>.<total>.<chunk>...ask.<zone>   long-question sessions
 tool.<name>.<args...>.ask.<zone>     tool calls
 ask.<zone>                           usage / help
+stats.ask.<zone>                     aggregate counters (DNSI_STATS=1)
 ```
 
 Anything outside the zones gets NXDOMAIN. A tokenized zone queried
 without its token gets REFUSED (rcode 5). Anything else gets an ANSWER
 section with TXT records; related questions are appended to the answer
 text as dig hints (section 3.2).
+
+**Friendly names.** Questions are decoded, then cleaned: trailing
+sentence punctuation (`?`, `!`, `.`) and stray wrapping hyphens are
+stripped. `what-is-dnsi?` and `what-is-dnsi` are the same question.
+Interior punctuation survives (`why? really?` keeps its interior `?`),
+and `???` alone is malformed, not a question. Tool arguments, session
+chunks and tokens are never cleaned - they are semantic.
 
 ## 2. Question encoding (QNAME)
 
@@ -233,10 +241,19 @@ and cost, not determined adversaries.
   cannot be spoofed and give clean framing for long answers).
 - TCP uses the standard 2-byte length prefix; multiple queries per
   connection are answered in order.
+- **DoT** (RFC 7858): `DNSI_DOT_PORT` (usually 853) + `DNSI_TLS_CERT` /
+  `DNSI_TLS_KEY`. TLS wraps the identical 2-byte length framing; no new
+  protocol logic.
+- **DoH** (RFC 8484): `DNSI_DOH_PORT` (usually 443) + the same cert env
+  vars. Both request forms are served at `/dns-query`: GET
+  `?dns=<base64url wire query>` and POST `application/dns-message`.
+  Responses are wire-format (`application/dns-message`) with
+  `cache-control: max-age=60`. Malformed requests get HTTP 400, wrong
+  paths 404.
 - No name compression is emitted. Compression pointers are followed when
   reading.
 
-## 7. Limits (v0.3)
+## 7. Limits (v0.4)
 
 - Direct questions: 200 UTF-8 bytes max; longer questions (up to ~1000
   bytes) ride in sessions (section 4.5).

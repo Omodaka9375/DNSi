@@ -406,7 +406,8 @@ html[data-mode="dark"] footer p { color: #909090; }
         <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
       </span>
       <span class="topbar-right">
-        <span><span id="heroVersion">v0.3.2</span> . <b id="heroStars">open source</b></span>
+        <span><span id="heroVersion">v0.4.0</span> . <b id="heroStars">open source</b></span>
+        <span id="heroStats" style="display:none"> . <b id="heroStatsText"></b></span>
         <span class="topbar-modes" role="group" aria-label="Colour mode">
           <button class="modebtn" type="button" data-mode="light" aria-pressed="false">Paper</button>
           <button class="modebtn" type="button" data-mode="dark" aria-pressed="false">Ink</button>
@@ -909,6 +910,28 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       askBtn.addEventListener('click', askLive);
       document.getElementById('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') askLive(); });
     }
+
+    /* ---- Live usage badge: stats.ask.dnsi.dev over DoH JSON ---- */
+    (async () => {
+      const badge = document.getElementById('heroStats');
+      if (!badge) return;
+      try {
+        const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent('stats.ask.dnsi.dev') + '&type=TXT');
+        const j = await r.json();
+        const txts = (j.Answer || []).filter((a) => a.type === 16).map((a) => (a.data || '').replace(/"/g, '')).join('');
+        if (j.Status !== 0 || !txts) return;
+        const qs = txts.match(/questions (\d+)/);
+        const up = txts.match(/uptime (\S+)/);
+        const hit = txts.match(/cache-hits \d+ \((\d+)% hit\)/);
+        if (!qs) return;
+        const text = [];
+        text.push(Number(qs[1]).toLocaleString('en-US') + ' questions answered');
+        if (hit) text.push(hit[1] + '% cached');
+        if (up) text.push('up ' + up[1]);
+        document.getElementById('heroStatsText').textContent = text.join(' . ');
+        badge.style.display = '';
+      } catch (e) { /* badge is a nice-to-have; stay silent */ }
+    })();
 
     /* ---- Scroll reveal (animation only, never hides content) ---- */
     const revealables = Array.from(document.querySelectorAll('section .wrap > *:not(.sec-head)'));

@@ -1,6 +1,9 @@
 import dgram from "node:dgram";
 import net from "node:net";
+import tls from "node:tls";
+import { readFileSync, writeFileSync } from "node:fs";
 import { AnswerCache } from "./cache.js";
+import { Counters } from "./counters.js";
 import {
   buildQuestionQname,
   decodeEncodedText,
@@ -51,6 +54,15 @@ export type DnsiOptions = {
   backend: Backend;
   rateLimit?: { burst: number; refillPerSec: number } | null;
   maxInFlight?: number;
+  /** Serve aggregate (anonymous) counters at stats.ask.<zone>. */
+  stats?: boolean;
+  /** Restore previously persisted counters and re-save periodically. */
+  statsFile?: string;
+  statsSaveMs?: number;
+  /** DNS-over-TLS listener (RFC 7858). Requires tlsCert + tlsKey. */
+  dotPort?: number;
+  tlsCert?: string;
+  tlsKey?: string;
 };
 
 export type ResolveResult = { records: AnswerRecord[]; rcode: number };
@@ -111,12 +123,71 @@ export class Dnsi {
   private inFlight = 0;
   private readonly maxInFlight: number;
   private sessions = new Map<string, SessionEntry>();
+  readonly counters = new Counters();
+  private readonly statsEnabled: boolean;
+  private statsTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly opts: DnsiOptions) {
     this.limiter = opts.rateLimit
       ? new RateLimiter(opts.rateLimit.burst, opts.rateLimit.refillPerSec)
       : null;
     this.maxInFlight = opts.maxInFlight ?? 32;
+    this.statsEnabled = opts.stats === true;
+    if (this.statsEnabled && opts.statsFile) this.startStatsPersistence(opts.statsFile);
+  }
+
+  /** Load a previous snapshot (if any) and re-save on an interval. */
+  private startStatsPersistence(file: string): void {
+    try {
+      const saved: unknown = JSON.parse(readFileSync(file, "utf8"));
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        // loaded snapshot counts are historical; the uptime counter stays
+        // bound to this process (Counters.startedAt is fresh).
+        this.counters.load(saved as Record<string, unknown>);
+      }
+    } catch {
+      // missing/corrupt file: start from zero rather than refusing to serve
+    }
+    const every = this.opts.statsSaveMs ?? 5 * 60 * 1000;
+    this.statsTimer = setInterval(() => {
+      try {
+        writeFileSync(file, JSON.stringify(this.counters.snapshot()));
+      } catch {
+        // best-effort persistence only
+      }
+    }, every);
+    this.statsTimer.unref?.();
+  }
+
+  /** One human-readable line per metric; answers stats.ask.<zone>. */
+  statsText(): string {
+    const c = this.counters;
+    const lines: string[] = [];
+    lines.push(`uptime ${Counters.humanUptime(Date.now() - c.startedAt)}`);
+    const qs = c.get("questions");
+    const hits = c.get("cache-hit");
+    const misses = c.get("questions");
+    const tools = c.get("tools");
+    const sessions = c.get("sessions");
+    const nx = c.get("nxdomain");
+    const refused = c.get("refused");
+    const fail = c.get("servfail");
+    const limited = c.get("ratelimited");
+    const udp = c.get("udp");
+    const tcp = c.get("tcp");
+    lines.push(`queries ${udp + tcp} (udp ${udp}, tcp ${tcp})`);
+    lines.push(
+      `questions ${qs} . tools ${tools} . sessions ${sessions} . cache-hits ${hits}` +
+        (qs + hits > 0
+          ? ` (${Math.round((hits / (qs + hits)) * 100)}% hit)`
+          : ""),
+    );
+    lines.push(`errors nxdomain ${nx} . refused ${refused} . servfail ${fail} . ratelimited ${limited}`);
+    const toolCounts = Object.entries(c.snapshot())
+      .filter(([k]) => k.startsWith("tool."))
+      .map(([k, v]) => `${k.slice(5)} ${v}`);
+    if (toolCounts.length > 0) lines.push(`by tool: ${toolCounts.join(", ")}`);
+    return lines.join("\n");
   }
 
   /**
@@ -130,7 +201,9 @@ export class Dnsi {
   ): Promise<Buffer | null> {
     const q = parseQuery(msg);
     if (!q) return null;
+    this.counters.inc(transport === "udp" ? "udp" : "tcp");
     if (clientIp && this.limiter && !this.limiter.allow(clientIp)) {
+      this.counters.inc("ratelimited");
       return encodeResponse(q.id, q.qname, q.qtype, q.qclass, [], RCODE.SERVFAIL);
     }
     const { records, rcode } = await this.resolve(q);
@@ -164,8 +237,14 @@ export class Dnsi {
 
   private async resolve(q: QueryInfo): Promise<ResolveResult> {
     const parsed = parseDnsiQname(q.qname, this.opts.zones);
-    if (!parsed) return { records: [], rcode: RCODE.NXDOMAIN };
-    if (parsed.kind === "unauthorized") return { records: [], rcode: RCODE.REFUSED };
+    if (!parsed) {
+      this.counters.inc("nxdomain");
+      return { records: [], rcode: RCODE.NXDOMAIN };
+    }
+    if (parsed.kind === "unauthorized") {
+      this.counters.inc("refused");
+      return { records: [], rcode: RCODE.REFUSED };
+    }
     // Dual-stack resolvers (getaddrinfo) send AAAA/HTTPS alongside A/TXT.
     // Answer NODATA (NOERROR, 0 records) immediately without touching the
     // backend or mutating session state.
@@ -174,7 +253,10 @@ export class Dnsi {
     }
 
     const cached = this.cache.get(cacheKey(q.qtype, q.qname));
-    if (cached) return { records: cached, rcode: RCODE.NOERROR };
+    if (cached) {
+      this.counters.inc("cache-hit");
+      return { records: cached, rcode: RCODE.NOERROR };
+    }
 
     switch (parsed.kind) {
       case "usage":
@@ -188,6 +270,9 @@ export class Dnsi {
           ],
           rcode: RCODE.NOERROR,
         };
+      case "stats":
+        if (!this.statsEnabled) return { records: [], rcode: RCODE.NXDOMAIN };
+        return { records: [txtRecord(this.statsText(), TTL_DYNAMIC)], rcode: RCODE.NOERROR };
       case "tool":
         return this.tool(parsed.tool, parsed.args, q.qname, q.qtype);
       case "session":
@@ -260,6 +345,7 @@ export class Dnsi {
     entry.parts.set(n, encoded);
     entry.bytes.set(n, chunkBytes);
     this.sessions.set(sessionKey, entry);
+    this.counters.inc("sessions");
 
     if (entry.parts.size < total) {
       return {
@@ -282,6 +368,8 @@ export class Dnsi {
   }
 
   private tool(tool: string, args: string, qname: string, qtype: number): ResolveResult {
+    this.counters.inc("tools");
+    this.counters.inc(`tool.${tool}`);
     const result = runTool(tool, args);
     if (!result) {
       return {
@@ -304,13 +392,16 @@ export class Dnsi {
     cacheable = true,
   ): Promise<ResolveResult> {
     if (this.inFlight >= this.maxInFlight) {
+      this.counters.inc("servfail");
       return { records: [], rcode: RCODE.SERVFAIL }; // shed load instead of piling up
     }
     this.inFlight += 1;
+    this.counters.inc("questions");
     let answer;
     try {
       answer = await this.opts.backend.ask(text);
     } catch {
+      this.counters.inc("servfail");
       return { records: [], rcode: RCODE.SERVFAIL };
     } finally {
       this.inFlight -= 1;
@@ -353,6 +444,8 @@ export class Dnsi {
 export type DnsiServer = {
   udpPort: number;
   tcpPort: number;
+  /** 0 when DoT is not configured. */
+  dotPort: number;
   dnsi: Dnsi;
   stop: () => Promise<void>;
 };
@@ -361,7 +454,12 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
   const dnsi = new Dnsi(opts);
   const tcpSockets = new Set<net.Socket>();
 
-  const tcp = net.createServer((socket) => {
+  /**
+   * Shared framed-query connection logic: TCP (RFC 1035 4.2.2) and DoT
+   * (RFC 7858) use the identical 2-byte length prefix on the wire, so one
+   * handler serves both transports.
+   */
+  const onFramedConnection = (socket: net.Socket): void => {
     tcpSockets.add(socket);
     // Idle connections are dropped and closing sockets leave the tracking
     // set: without this, one Socket object leaks per connect/close cycle
@@ -400,7 +498,9 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
       });
     });
     socket.on("error", () => {});
-  });
+  };
+
+  const tcp = net.createServer(onFramedConnection);
 
   await new Promise<void>((resolve, reject) => {
     tcp.once("error", reject);
@@ -433,13 +533,33 @@ export async function startServer(opts: DnsiOptions): Promise<DnsiServer> {
   const tcpAddress = tcp.address();
   const tcpPort = typeof tcpAddress === "object" && tcpAddress ? tcpAddress.port : opts.tcpPort;
 
+  // Optional DoT listener (RFC 7858): TLS wrapping the same framed handler.
+  let dot: tls.Server | null = null;
+  let dotPort = 0;
+  if (opts.dotPort && opts.dotPort > 0 && opts.tlsCert && opts.tlsKey) {
+    dot = tls.createServer(
+      { cert: opts.tlsCert, key: opts.tlsKey },
+      onFramedConnection,
+    );
+    await new Promise<void>((resolve, reject) => {
+      dot?.once("error", reject);
+      dot?.listen(opts.dotPort ?? 853, () => resolve());
+    });
+    const a = dot.address();
+    dotPort = typeof a === "object" && a ? a.port : (opts.dotPort ?? 853);
+  }
+
   return {
     udpPort,
     tcpPort,
+    dotPort,
     dnsi,
     stop: async () => {
       for (const s of tcpSockets) s.destroy();
       await new Promise<void>((resolve) => tcp.close(() => resolve()));
+      if (dot) {
+        await new Promise<void>((resolve) => dot?.close(() => resolve()));
+      }
       if (udp) {
         await new Promise<void>((resolve) => udp?.close(() => resolve()));
       }

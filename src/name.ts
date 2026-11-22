@@ -185,7 +185,22 @@ export type DnsiQuery =
       zone: ZoneConfig;
     }
   | { kind: "usage"; zone: ZoneConfig }
+  | { kind: "stats"; zone: ZoneConfig }
   | { kind: "unauthorized"; zone: ZoneConfig };
+
+/**
+ * Friendly-mode question cleanup: trims trailing sentence punctuation and
+ * stray hyphens that a human types around a question ("what-is-dnsi?",
+ * "- what is dnsi -"). Never touches content between words, and cannot
+ * corrupt %XX encodings because it runs after decoding.
+ */
+export function friendlyQuestion(question: string): string {
+  return question
+    .replace(/[?.!]+\s*$/, "")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+    .trim();
+}
 
 /**
  * Parse a QNAME against our zones. Returns null when the name belongs to
@@ -231,6 +246,8 @@ export function parseDnsiQname(qname: string, zones: ZoneConfig[]): DnsiQuery | 
     }
 
     if (rest.length === 0) return { kind: "usage", zone: cfg };
+    // Reserved operator name: stats.ask.<zone> dumps aggregate counters.
+    if (rest.length === 1 && rest[0] === "stats") return { kind: "stats", zone: cfg };
 
     const head = rest[0];
     const second = rest[1];
@@ -268,7 +285,18 @@ export function parseDnsiQname(qname: string, zones: ZoneConfig[]): DnsiQuery | 
     // backend call carrying unbounded text.
     if (question.length === 0) return null;
     if (Buffer.byteLength(question, "utf8") > MAX_QUESTION_BYTES) return null;
-    return { kind: "question", question, zone: cfg };
+    return {
+      kind: "question",
+      // Human-typing forgiveness, applied to the DECODED question: strip
+      // the punctuation that slips in when a question is typed by hand or
+      // copied from prose - trailing "?"/"!"/"." and stray wrapping
+      // hyphens. Applied here (not to raw labels) so %XX-encoded content
+      // is never touched mid-stream, and tool args / session chunks keep
+      // byte-exact semantics. Cache keys use the raw qname, so both the
+      // friendly and the strict spelling still get their own entries.
+      question: friendlyQuestion(question),
+      zone: cfg,
+    };
   }
   return null;
 }

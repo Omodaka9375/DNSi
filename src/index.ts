@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { selectBackend } from "./backend.js";
+import { startDoh } from "./doh.js";
 import { startServer } from "./server.js";
 import type { ZoneConfig } from "./name.js";
 
@@ -44,6 +45,8 @@ const port = Number(process.env.DNSI_PORT ?? 5353);
 const tcpOnly = process.env.DNSI_TCP_ONLY === "1";
 const backend = selectBackend();
 const rateLimit = parseRateLimit(process.env);
+const stats = process.env.DNSI_STATS === "1";
+const statsFile = process.env.DNSI_STATS_FILE;
 
 const server = await startServer({
   zones,
@@ -52,18 +55,49 @@ const server = await startServer({
   tcpOnly,
   backend,
   rateLimit,
+  stats,
+  statsFile,
+  dotPort: Number(process.env.DNSI_DOT_PORT ?? 0) || undefined,
+  tlsCert: process.env.DNSI_TLS_CERT,
+  tlsKey: process.env.DNSI_TLS_KEY,
 });
+
+// Optional DoH front (RFC 8484): DNSI_DOH_PORT, with optional TLS certs.
+const dohPort = Number(process.env.DNSI_DOH_PORT ?? 0);
+let dohPort_ = 0;
+let dohServer: Awaited<ReturnType<typeof startDoh>> | null = null;
+if (Number.isInteger(dohPort) && dohPort > 0) {
+  const { readFileSync } = await import("node:fs");
+  const certPath = process.env.DNSI_TLS_CERT;
+  const keyPath = process.env.DNSI_TLS_KEY;
+  dohServer = await startDoh(server.dnsi, {
+    port: dohPort,
+    tlsCert: certPath && keyPath ? readFileSync(certPath, "utf8") : undefined,
+    tlsKey: certPath && keyPath ? readFileSync(keyPath, "utf8") : undefined,
+  });
+  dohPort_ = dohServer.port;
+}
 
 // No per-client logging. One startup line, nothing else.
 console.log(
   `[dnsi] zones=${zones.map((z) => z.zone + (z.token ? "(token)" : "")).join(",")} ` +
     `backend=${backend.name} udp=${tcpOnly ? "off" : server.udpPort} tcp=${server.tcpPort} ` +
-    `ratelimit=${rateLimit ? `${rateLimit.burst}/${rateLimit.refillPerSec}pps` : "off"}`,
+    `dot=${server.dotPort || "off"} doh=${dohPort_ || "off"} ` +
+    `ratelimit=${rateLimit ? `${rateLimit.burst}/${rateLimit.refillPerSec}pps` : "off"} ` +
+    `stats=${stats ? (statsFile ? `on(file ${statsFile})` : "on") : "off"}`,
 );
 
 process.on("SIGINT", () => {
-  void server.stop().then(() => process.exit(0));
+  void (async () => {
+    await dohServer?.stop();
+    await server.stop();
+    process.exit(0);
+  })();
 });
 process.on("SIGTERM", () => {
-  void server.stop().then(() => process.exit(0));
+  void (async () => {
+    await dohServer?.stop();
+    await server.stop();
+    process.exit(0);
+  })();
 });
