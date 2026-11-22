@@ -1,4 +1,8 @@
-# DNSi
+<h1><img src="docs/logo.svg" alt="DNSi" height="27" style="vertical-align:-16px"> DNSi</h1>
+
+[![npm](https://img.shields.io/npm/v/dnsi?label=npm%20dnsi)](https://www.npmjs.com/package/dnsi)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-green)](package.json)
 
 **Access LLMs from any device, on any network, using nothing but DNS.**
 
@@ -10,6 +14,11 @@ question, and the answer comes back as the reply.
 pnpm ask -- "how do I split a git commit"
 # answer comes back, plus related questions worth asking next
 ```
+
+**Jump to:** [Why it exists](#why-it-exists) ·
+[Use cases](#what-people-use-it-for) · [How is this different](#how-is-this-different) ·
+[Modes](#three-ways-to-run-it) · [Quick start](#quick-start) ·
+[Costs](#running-costs) · [Install](#install) · [Documentation](#documentation)
 
 ## Why it exists
 
@@ -123,6 +132,6 @@ Requires Node 22+. 35 kB download, zero runtime dependencies.
 ## Development
 
 ```bash
-pnpm verify      # typecheck + 26 tests
+pnpm verify      # typecheck + 47 tests
 pnpm build       # emit dist/
 ```

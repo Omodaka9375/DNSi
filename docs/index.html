@@ -1,227 +1,823 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mode="light">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DNSi: Ask anything, anywhere. No app.</title>
-<meta name="description" content="DNSi is a question box that rides on DNS, the one service every device on earth can already speak.">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNSi - ask anything, anywhere. No app.</title>
+<meta name="description" content="DNSi turns a DNS lookup into a question to an LLM. One command from any device, on any network. Zero runtime dependencies, Node 22+.">
+<meta name="theme-color" content="#ffffff">
+<link rel="alternate" type="text/plain" href="PLAIN.md" title="PLAIN.md">
+
+<meta property="og:title" content="DNSi - ask anything, anywhere. No app." />
+<meta property="og:description" content="A question box that rides on DNS. Any device that can resolve a name can ask; the answer comes back as the reply." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="https://dnsi.dev/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="DNSi - ask anything, anywhere." />
+<meta property="og:url" content="https://dnsi.dev/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="DNSi - ask anything, anywhere. No app." />
+<meta name="twitter:description" content="A question box that rides on DNS. Zero runtime dependencies, Node 22+." />
+<meta name="twitter:image" content="https://dnsi.dev/og.png" />
+
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<!-- iOS ignores SVG apple-touch-icons; use the PNG. -->
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="icon" type="image/png" href="favicon.png">
+
 <style>
-  :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --border: #30363d;
-    --text: #e6edf3;
-    --muted: #9aa7b3;
-    --accent: #4ade80;
-    --accent-dim: #22c55e;
-    --code-bg: #010409;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-  nav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 0; border-bottom: 1px solid var(--border);
-  }
-  .brand { font-weight: 700; letter-spacing: 0.5px; color: var(--accent); font-size: 18px; }
-  nav .links a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: 14px; }
-  nav .links a:hover { color: var(--text); }
-  header.hero { padding: 88px 0 64px; }
-  h1 { font-size: 44px; line-height: 1.15; font-weight: 800; letter-spacing: -1px; }
-  h1 .accent { color: var(--accent); }
-  .sub { margin-top: 18px; font-size: 19px; color: var(--muted); max-width: 640px; }
-  .hero-code {
-    margin-top: 36px; background: var(--code-bg); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px 24px; font: 14px/1.7 ui-monospace, Consolas, monospace;
-    overflow-x: auto;
-  }
-  .hero-code .c { color: var(--muted); }
-  .hero-code .p { color: var(--accent); }
-  section { padding: 56px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; margin-bottom: 18px; }
-  h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
-  p.lead { color: var(--muted); max-width: 660px; margin-bottom: 24px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 20px 22px;
-  }
-  .card p { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
-  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
-  th, td { text-align: left; padding: 12px 14px; border: 1px solid var(--border); }
-  th { background: var(--panel); color: var(--muted); font-weight: 600; }
-  td { color: var(--text); }
-  td.muted { color: var(--muted); }
-  .note {
-    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent);
-    border-radius: 8px; padding: 18px 22px; color: var(--muted); font-size: 14.5px;
-  }
-  .note strong { color: var(--text); }
-  ul.plain { list-style: none; }
-  ul.plain li { padding: 8px 0 8px 26px; position: relative; color: var(--muted); }
-  ul.plain li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-dim); }
-  ul.plain li strong { color: var(--text); }
-  .docgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-  .docgrid a {
-    display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px 18px; text-decoration: none; color: var(--text); font-weight: 600; font-size: 14.5px;
-  }
-  .docgrid a span { display: block; color: var(--muted); font-weight: 400; font-size: 13px; margin-top: 4px; }
-  .docgrid a:hover { border-color: var(--accent-dim); }
-  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 13.5px; }
-  footer a { color: var(--accent); text-decoration: none; }
-  code {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
-    padding: 1px 6px; font-size: 0.9em; font-family: ui-monospace, Consolas, monospace;
-  }
-  @media (max-width: 640px) {
-    h1 { font-size: 32px; }
-    header.hero { padding: 56px 0 40px; }
-    nav .links a { margin-left: 12px; }
-  }
+/* ----------------------------------------------------------------
+   dnsi - monochrome editorial system
+   one ink, one paper, hairline rules, tabular grids.
+   Same design language as the Browserr landing page.
+   ---------------------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+  /* Palette: ink / paper / steps between. No hue anywhere. */
+  --ink:       #111111;
+  --ink-2:     #333333;
+  --ink-3:     #666666;
+  --ink-4:     #999999;
+  --paper:     #ffffff;
+  --paper-2:   #f4f4f2;   /* slight warm cast, avoids clinical white */
+  --paper-3:   #ececea;
+  --rule:      #d9d9d6;
+  --rule-dark: #111111;
+  --sel:       #111111;   /* selection = inverted */
+  --sel-text:  #ffffff;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --sans:  "Helvetica Neue", Helvetica, Inter, "Segoe UI", Arial, sans-serif;
+  --mono:  ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --max: 1060px;
+}
+html[data-mode="dark"] {
+  color-scheme: dark;
+  --ink:      #e8e8e6;
+  --ink-2:    #c8c8c6;
+  --ink-3:    #909090;
+  --ink-4:    #6a6a6a;
+  --paper:    #101010;
+  --paper-2:  #171717;
+  --paper-3:  #202020;
+  --rule:     #333333;
+  --rule-dark:#e8e8e6;
+  --sel:      #e8e8e6;
+  --sel-text: #101010;
+}
+html[data-mode="light"] { color-scheme: light; }
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+::selection { background: var(--sel); color: var(--sel-text); }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+img { display: block; max-width: 100%; height: auto; }
+code { font-family: var(--mono); font-size: 0.85em; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.skip {
+  position: absolute; left: -9999px; top: 0; z-index: 200;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 10px 16px; border: 1px solid var(--rule-dark);
+}
+.skip:focus { left: 0; }
+
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px); }
+
+/* ---- top rule ---- */
+.topbar { border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.topbar .wrap { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding-top: 10px; padding-bottom: 10px; }
+.topbar a { color: var(--ink-2); text-decoration: none; }
+.topbar a:hover { color: var(--ink); text-decoration: underline; }
+.topbar .brand { color: var(--ink); font-weight: 700; }
+.topbar .brand img { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; border-radius: 2px; }
+.topbar-links { display: flex; gap: 14px; }
+.topbar-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.topbar-modes { display: inline-flex; align-items: center; gap: 0; }
+.topbar .modebtn { font-size: 0.58rem; padding: 3px 9px; letter-spacing: 0.1em; border-color: var(--ink-4); }
+.topbar .modebtn + .modebtn { border-left: 0; }
+
+/* ---- masthead ---- */
+.masthead .wrap { padding-top: clamp(56px, 10vh, 110px); padding-bottom: clamp(36px, 6vh, 64px); }
+.masthead h1 {
+  font-family: var(--mono);
+  font-size: clamp(2.4rem, 5.6vw, 4.4rem);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin: 0 0 20px;
+  white-space: nowrap;
+}
+.masthead h1 img { display: inline-block; width: 0.82em; height: 0.82em; vertical-align: middle; margin-right: 0.22em; border-radius: 0.14em; }
+.masthead h1 .cursor { color: var(--ink-4); font-weight: 400; }
+.masthead .dek {
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  line-height: 1.4;
+  max-width: 46ch;
+  margin: 0 0 32px;
+  color: var(--ink-2);
+}
+.masthead .dek strong { color: var(--ink); font-weight: 600; }
+
+.mast-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+.btn-primary, .btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 12px 22px; cursor: pointer; text-decoration: none;
+}
+.btn-primary { background: var(--ink); color: var(--paper); border: 1px solid var(--ink); }
+.btn-primary:hover { background: var(--paper); color: var(--ink); text-decoration: none; }
+.btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink-3); }
+.btn-secondary:hover { border-color: var(--ink); text-decoration: none; }
+
+/* ---- spec strip ---- */
+.specs { display: flex; flex-wrap: wrap; justify-content: space-between; border-top: 1px solid var(--rule); font-family: var(--mono); margin: 0; }
+.specs > div { display: flex; align-items: baseline; gap: 9px; padding: 13px 8px 13px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.specs dt { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-4); }
+.specs dd { margin: 0; font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+.stats dd { font-size: 1.5rem; letter-spacing: -0.02em; }
+
+/* ---- sections ---- */
+section { border-bottom: 1px solid var(--rule); }
+section .wrap { padding-top: clamp(44px, 7vw, 76px); padding-bottom: clamp(44px, 7vw, 76px); }
+.kicker {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  margin: 0 0 8px; color: var(--ink);
+}
+.kicker::before { content: "\00a7\00a0"; color: var(--ink-4); }
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 3.4vw, 2.3rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 0 0 14px;
+}
+.lead { font-size: 1.02rem; max-width: 68ch; color: var(--ink-2); margin: 0 0 32px; }
+.lead strong { color: var(--ink); font-weight: 600; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 14px; }
+.sec-head h2 { margin: 0; }
+.sec-no { font-family: var(--mono); font-size: 0.75rem; color: var(--ink-4); white-space: nowrap; }
+
+/* ---- component table (not cards) ---- */
+table.blocks { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.blocks td, table.blocks th { text-align: left; vertical-align: top; padding: 18px 20px 18px 0; border-bottom: 1px solid var(--rule); }
+table.blocks th {
+  font-family: var(--mono); font-weight: 700; font-size: 0.66rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4);
+  padding-top: 0;
+}
+table.blocks td:first-child { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; white-space: nowrap; color: var(--ink); padding-right: 32px; }
+table.blocks td { color: var(--ink-2); }
+table.blocks td b { color: var(--ink); font-weight: 600; }
+table.blocks a { color: var(--ink); }
+table.blocks tr.group td {
+  font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+  border-bottom: 2px solid var(--rule-dark);
+  padding: 34px 0 10px;
+}
+table.blocks tr.group:first-child td { padding-top: 4px; }
+
+/* ---- hero layout: copy left, terminal right ---- */
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); gap: 72px; align-items: center; }
+.hero-copy { min-width: 0; }
+.hero-term .term { margin: 0; max-width: none; }
+@media (max-width: 1020px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+  .hero-term .term { max-width: 680px; }
+}
+
+/* ---- terminal mock / animation ---- */
+.term {
+  background: var(--paper-2); border: 1px solid var(--rule-dark);
+  overflow: hidden; max-width: 680px; margin: 44px 0 0;
+  text-align: left; position: relative;
+}
+.term-bar {
+  display: flex; align-items: center; gap: 7px; padding: 10px 14px;
+  background: var(--paper-3); border-bottom: 1px solid var(--rule);
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+}
+.term-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--ink-3); background: transparent; }
+.term-title { margin-left: 10px; }
+.term-body {
+  padding: 18px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.75;
+  min-height: 268px; color: var(--ink-3);
+}
+.t-line { white-space: pre-wrap; word-break: break-word; }
+.t-prompt { color: var(--ink); }
+.t-cmd { color: var(--ink-2); }
+.t-out { color: var(--ink-3); }
+.t-ok { color: var(--ink); }
+.caret {
+  display: inline-block; width: 7px; height: 15px; vertical-align: -2px;
+  background: var(--ink); animation: blink 1.1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.t-tool { opacity: 0; transform: translateY(4px); transition: opacity 0.35s ease, transform 0.35s ease; }
+.t-tool.in { opacity: 1; transform: none; }
+.t-row { display: flex; align-items: center; gap: 9px; }
+.t-chip {
+  flex: none; width: 20px; height: 20px; display: grid; place-items: center;
+  font-size: 11px; background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+}
+.t-name { color: var(--ink); }
+.t-arg { color: var(--ink-3); }
+.t-diff { margin: 2px 0 6px 29px; border-left: 2px solid var(--rule-dark); padding-left: 12px; font-size: 12.5px; }
+.t-add { color: var(--ink); }
+.thinking-dots::after { content: '\2026'; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '\2026'; } }
+
+/* ---- mode switcher (paper / ink) ---- */
+.modebtn {
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  background: var(--paper); color: var(--ink-2);
+  border: 1px solid var(--rule-dark); padding: 7px 14px; cursor: pointer;
+}
+.modebtn:hover { background: var(--paper-2); }
+.modebtn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* ---- question marquee ---- */
+.marquee {
+  overflow: hidden; margin-top: 8px; position: relative;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.marquee-track { display: flex; gap: 12px; width: max-content; animation: scroll 46s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+@keyframes scroll { to { transform: translateX(-50%); } }
+.chip {
+  background: var(--paper); border: 1px solid var(--rule);
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.04em;
+  padding: 9px 16px; color: var(--ink-2); white-space: nowrap;
+  transition: border-color 0.2s, color 0.2s;
+}
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+
+/* ---- code blocks with copy ---- */
+.codebox { position: relative; margin: 0 0 14px; }
+.codebox pre {
+  margin: 0; padding: 14px 18px; overflow-x: auto;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: 0.82rem; line-height: 1.6;
+}
+.codebox .copy {
+  position: absolute; top: 6px; right: 6px;
+  font-family: var(--mono); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  background: transparent; color: var(--paper);
+  border: 1px solid currentColor; padding: 4px 8px;
+  cursor: pointer; opacity: 0.5;
+}
+.codebox .copy:hover, .codebox .copy:focus-visible { opacity: 1; }
+.codebox .copy[data-done="1"] { background: var(--paper); color: var(--ink); opacity: 1; }
+
+/* ---- wide tables scroll instead of squeezing ---- */
+.tscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tscroll table.blocks { min-width: 700px; }
+table.blocks.compare td, table.blocks.compare th { padding: 14px 14px 14px 0; }
+table.blocks.compare td:first-child { padding-right: 24px; }
+
+/* ---- note callout ---- */
+.note {
+  border-left: 3px solid var(--rule-dark);
+  padding: 4px 0 4px 22px;
+  margin: 28px 0 0;
+  max-width: 72ch;
+}
+.note p { margin: 0 0 10px; font-size: 0.95rem; color: var(--ink-2); }
+.note p:last-child { margin: 0; }
+.note b { color: var(--ink); }
+
+/* ---- footer / colophon ---- */
+footer { background: var(--ink); color: var(--paper); border-bottom: 0; }
+footer .wrap { padding-top: 40px; padding-bottom: 40px; display: flex; flex-wrap: wrap; gap: 32px; justify-content: space-between; align-items: baseline; }
+footer .fn { font-family: var(--serif); font-size: 1.3rem; }
+footer .fn img { display: inline-block; width: 22px; height: 22px; vertical-align: -4px; margin-right: 10px; border-radius: 3px; }
+footer p { margin: 0; font-family: var(--mono); font-size: 0.72rem; line-height: 1.8; color: #a0a09e; max-width: 46ch; }
+footer a { color: var(--paper); }
+html[data-mode="dark"] footer p { color: #909090; }
+
+/* ---- responsive ---- */
+@media (max-width: 720px) {
+  section .wrap { padding-top: 48px; padding-bottom: 48px; }
+  .topbar-links { display: none; }
+  .term-body { font-size: 12px; min-height: 240px; }
+  .stats dd { font-size: 1.15rem; }
+  /* Stacked rows read well for the feature lists; the comparison grid
+     keeps its columns and scrolls sideways instead. */
+  table.blocks:not(.compare),
+  table.blocks:not(.compare) tbody,
+  table.blocks:not(.compare) tr,
+  table.blocks:not(.compare) td,
+  table.blocks:not(.compare) th { display: block; width: 100%; }
+  table.blocks:not(.compare) th { display: none; }
+  table.blocks:not(.compare) td:first-child { padding: 16px 0 4px; white-space: normal; }
+}
+
+/* ---- motion ----
+   Reveal is an animation, never a default-hidden state: elements are
+   visible in CSS and only ever animate towards visible. If script or
+   IntersectionObserver never runs, nothing stays hidden. */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-in.visible { animation: reveal-up 0.6s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  .fade-in { opacity: 1; transform: none; }
+  html { scroll-behavior: auto; }
+}
 </style>
 </head>
 <body>
+  <a class="skip" href="#what">Skip to content</a>
 
-<div class="wrap">
-  <nav>
-    <div class="brand">DNSi</div>
-    <div class="links">
-      <a href="#use-cases">Use cases</a>
-      <a href="#run-it">Run it</a>
-      <a href="#costs">Costs</a>
-      <a href="#docs">Docs</a>
-      <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
+  <!-- Top rule -->
+  <div class="topbar">
+    <div class="wrap">
+      <span class="brand"><a href="#"><img src="logo.svg" alt="">dnsi / server</a></span>
+      <span class="topbar-links">
+        <a href="#what">What</a>
+        <a href="#use">Use</a>
+        <a href="#run">Run</a>
+        <a href="#docs">Docs</a>
+        <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
+      </span>
+      <span class="topbar-right">
+        <span><span id="heroVersion">v0.3.0</span> . <b id="heroStars">open source</b></span>
+        <span class="topbar-modes" role="group" aria-label="Colour mode">
+          <button class="modebtn" type="button" data-mode="light" aria-pressed="false">Paper</button>
+          <button class="modebtn" type="button" data-mode="dark" aria-pressed="false">Ink</button>
+        </span>
+      </span>
     </div>
-  </nav>
+  </div>
 
-  <header class="hero">
-    <h1>Ask anything, anywhere.<br><span class="accent">No app needed.</span></h1>
-    <p class="sub">
-      DNSi is a question box that rides on DNS, the one service every phone,
-      laptop, router and controller on earth can already speak. If a device can
-      look up a domain name, it can ask an AI a question.
-    </p>
-    <div class="hero-code">
-      <span class="c"># no install, no account: ask the public demo server</span><br>
-      $ <span class="p">npx dnsi-ask "what is dnsi"</span><br>
-      <span class="c"># prepared answers about DNSi, no AI behind it, no key needed</span>
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <h1><img src="logo.svg" alt="DNSi icon">dnsi<span class="cursor">_</span></h1>
+          <p class="dek">
+            A <strong>question box that rides on DNS</strong>. Every phone, laptop, router
+            and controller on earth can already look up a name. DNSi turns that lookup into
+            a question, and the answer comes back as the reply.
+          </p>
+          <div class="mast-actions">
+            <a href="https://github.com/Omodaka9375/DNSi" class="btn-primary">View on GitHub</a>
+            <a href="read.html?doc=PLAIN.md" class="btn-secondary">Read the docs</a>
+          </div>
+        </div>
+
+        <div class="hero-term">
+          <!-- Animated device session -->
+          <div class="term" role="img" aria-label="A device asking DNSi a question over DNS and receiving the answer">
+            <div class="term-bar">
+              <span class="term-dot"></span>
+              <span class="term-dot"></span>
+              <span class="term-dot"></span>
+              <span class="term-title">device - udp/53</span>
+            </div>
+            <div class="term-body" id="termBody"></div>
+          </div>
+        </div>
+      </div>
+
+      <dl class="specs">
+        <div><dt>Runtime</dt><dd>Node 22+</dd></div>
+        <div><dt>Size</dt><dd>35 kB</dd></div>
+        <div><dt>Dependencies</dt><dd>0</dd></div>
+        <div><dt>Transports</dt><dd>UDP and TCP</dd></div>
+      </dl>
     </div>
   </header>
 
-  <section id="what">
-    <h2>What is this?</h2>
-    <p class="lead">
-      Think of directory assistance: you dial a number, say a name, and a person
-      tells you the answer. The internet has had that since 1983. It is called
-      DNS, and until now it only knew one kind of answer: what number is this name?
-    </p>
-    <p class="lead">
-      DNSi teaches it a new trick. The question travels as a domain name,
-      the answer comes back as the reply. No app to install, no account, no
-      website to open.
-    </p>
-    <div class="hero-code">
-      dig +short TXT "what is dnsi" @dnsi.dev
-    </div>
-  </section>
+  <main>
 
-  <section id="use-cases">
-    <h2>What people use it for</h2>
-    <div class="cards">
-      <div class="card">
-        <h3>Terminal Q&amp;A</h3>
-        <p>One command instead of opening a browser. You live in a shell; the answer lands in it.</p>
-      </div>
-      <div class="card">
-        <h3>Blocked networks</h3>
-        <p>Hotel wifi, airplanes, locked-down offices. They block apps and websites. DNS is the one lane that stays open.</p>
-      </div>
-      <div class="card">
-        <h3>Dumb devices</h3>
-        <p>A printer, a sensor, 20 year old firmware. A plain name lookup returns the answer text, plus a clock, a UUID and a hash.</p>
-      </div>
-      <div class="card">
-        <h3>Team knowledge</h3>
-        <p>"How do I connect to the VPN" becomes a name anyone in the office can look up. IT writes it once, everyone asks by typing.</p>
-      </div>
-      <div class="card">
-        <h3>AI agents</h3>
-        <p>Sandboxed agents that may only resolve DNS get a sanctioned question and tool channel. Rate limited, log-free.</p>
-      </div>
-      <div class="card">
-        <h3>Anything with a resolver</h3>
-        <p>dig, nslookup, Python, C, BusyBox. If it can resolve a name, it is already a DNSi client.</p>
-      </div>
-    </div>
-  </section>
+    <!-- What -->
+    <section id="what">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Idea</p>
+          <span class="sec-no">01 / 06</span>
+        </div>
+        <h2>Directory assistance, taught a new trick.</h2>
+        <p class="lead">
+          You dial a number, say a name, and a person tells you the answer. The internet has
+          had that service since 1983. It is called DNS, and until now it knew exactly one
+          kind of answer: <strong>what number is this name</strong>. DNSi adds a second one.
+          The question travels inside the name, and the answer comes back in the reply.
+        </p>
+        <div class="codebox">
+<pre>$ npx dnsi-ask "what is dnsi"
+A question box that rides on DNS: ask by name, get the answer back as TXT records.
 
-  <section id="run-it">
-    <h2>Three ways to run it</h2>
-    <table>
-      <tr><th>Where</th><th>Who can ask</th><th>Good for</th><th>Cost</th></tr>
-      <tr>
-        <td>Your machine</td><td>only you</td>
-        <td class="muted">personal terminal Q&amp;A, trying it out</td><td>free</td>
-      </tr>
-      <tr>
-        <td>Your LAN</td><td>everyone on the network</td>
-        <td class="muted">team knowledge, device fleets</td><td>free + AI tokens</td>
-      </tr>
-      <tr>
-        <td>The internet</td><td>anyone, or token holders</td>
-        <td class="muted">public utility, paid service</td><td>~$5/month VPS + AI tokens</td>
-      </tr>
-    </table>
-    <p class="lead" style="margin-top:18px">
-      One deployment can serve an open zone and a token-protected zone at the
-      same time. A wrong or missing token is refused.
-    </p>
-  </section>
+related:
+  dig TXT what-is-dnsi-history.ask.dnsi.dev
+  dig TXT who-is-dnsi-for.ask.dnsi.dev</pre>
+          <button class="copy" type="button" aria-label="Copy command">Copy</button>
+        </div>
+        <p class="lead" style="margin: 24px 0 0;">
+          Related questions come back as CNAME records, so one answer is also a pointer into
+          a graph. Every one of them is a name you can ask again with the same single call.
+        </p>
+      </div>
+      <div class="marquee">
+        <div class="marquee-track" id="marqueeTrack"></div>
+      </div>
+    </section>
 
-  <section id="costs">
-    <h2>What it costs</h2>
-    <ul class="plain">
-      <li><strong>Trying it locally: free.</strong> No API key, no internet needed.</li>
-      <li><strong>Public hobby scale: under $10/month.</strong> A small VPS plus roughly $1-5 of AI tokens for a thousand questions a day.</li>
-      <li><strong>Repeat questions are free.</strong> Answers are cached (canonical answers for an hour), so popular questions cost nothing after the first ask.</li>
-      <li><strong>Tools never touch the AI.</strong> Time, UUID and hash are answered locally in microseconds.</li>
-    </ul>
-  </section>
+    <!-- Use -->
+    <section id="use">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Scope</p>
+          <span class="sec-no">02 / 06</span>
+        </div>
+        <h2>What people use it for.</h2>
+        <p class="lead">
+          Not a chat client. It is the one channel a locked-down machine still has open, and
+          it needs no client at all.
+        </p>
+        <table class="blocks">
+          <thead><tr><th>Situation</th><th>What happens</th></tr></thead>
+          <tbody>
+            <tr class="group"><td colspan="2">You</td></tr>
+            <tr><td>terminal</td><td><b>One command, no browser.</b> You live in a shell; the answer lands in it. No window, no login, no tab.</td></tr>
+            <tr><td>blocked</td><td><b>Hostile networks.</b> Hotel wifi, airplane wifi, locked-down offices. They block apps and sites; DNS stays open or nothing loads at all.</td></tr>
+            <tr><td>offline</td><td><b>Local first.</b> Run it on your own machine and the demo answers need no key and no internet.</td></tr>
 
-  <section id="honest">
-    <h2>Is this a hack?</h2>
-    <div class="note">
-      <p>
-        It is a deliberate repurposing of the internet's oldest
-        question-answering machine, built with the safeguards security teams
-        expect: rate limits, load shedding, zero per-user logging, and an
-        option to answer over TCP only. Questions and answers travel in plain
-        text, so do not send passwords through it.
-      </p>
-    </div>
-  </section>
+            <tr class="group"><td colspan="2">Devices</td></tr>
+            <tr><td>dumb</td><td><b>Anything with a resolver.</b> A printer, a sensor, 20-year-old firmware. It cannot run apps; it can resolve a name, so it can ask.</td></tr>
+            <tr><td>tools</td><td><b>Four built-ins.</b> <code>time</code>, <code>echo</code>, <code>uuid</code>, <code>hash</code> answer locally in microseconds, never touching the model.</td></tr>
+            <tr><td>clientless</td><td><b>dig, nslookup, Python, C, BusyBox.</b> If it can resolve a name, it is already a DNSi client.</td></tr>
 
-  <section id="docs">
-    <h2>Documentation</h2>
-      <div class="docgrid">
-      <a href="read.html?doc=PLAIN.md">PLAIN.md <span>what this is in plain words</span></a>
-      <a href="read.html?doc=PROTOCOL.md">PROTOCOL.md <span>the exact wire format</span></a>
-      <a href="read.html?doc=AGENTS.md">AGENTS.md <span>agents, devices, hostile networks</span></a>
-      <a href="read.html?doc=ARCHITECTURE.md">ARCHITECTURE.md <span>components and caching</span></a>
-      <a href="read.html?doc=OPERATIONS.md">OPERATIONS.md <span>deployment and configuration</span></a>
-    </div>
-  </section>
+            <tr class="group"><td colspan="2">Teams and agents</td></tr>
+            <tr><td>knowledge</td><td><b>One place to ask.</b> "How do I connect to the vpn" becomes a name anyone in the office can look up. IT writes it once.</td></tr>
+            <tr><td>agents</td><td><b>Sanctioned channel.</b> A sandboxed agent that may only resolve DNS gets a question channel and a tool channel, rate limited and log-free.</td></tr>
+            <tr><td>tokens</td><td><b>Open and private zones at once.</b> One server, many zones. A zone can require a token inside the name; wrong or missing is refused.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Run -->
+    <section id="run">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Deploy</p>
+          <span class="sec-no">03 / 06</span>
+        </div>
+        <h2>Three ways to run it.</h2>
+        <p class="lead">Same code, same protocol. Only the reach and the cost change.</p>
+        <div class="tscroll">
+        <table class="blocks compare">
+          <thead><tr><th></th><th>Where</th><th>Who can ask</th><th>Good for</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr><td>local</td><td>Your machine</td><td>only you</td><td>personal terminal Q&amp;A, trying it out</td><td><b>free</b></td></tr>
+            <tr><td>lan</td><td>Your network</td><td>everyone on it</td><td>team knowledge, device fleets</td><td><b>free plus AI tokens</b></td></tr>
+            <tr><td>public</td><td>A VPS on port 53</td><td>anyone, or token holders</td><td>public utility, paid service</td><td><b>about $5/month plus tokens</b></td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="codebox" style="margin-top: 28px;">
+<pre># window 1 - the server, no configuration needed
+pnpm install &amp;&amp; pnpm start
+
+# window 2 - ask it anything
+pnpm ask -- "how do I split a git commit" --local</pre>
+          <button class="copy" type="button" aria-label="Copy commands">Copy</button>
+        </div>
+        <p class="lead" style="margin: 18px 0 0;">
+          Point it at any OpenAI-compatible endpoint with three environment variables to get
+          live model answers. With none set, it serves prepared answers about itself.
+        </p>
+      </div>
+    </section>
+
+    <!-- Costs -->
+    <section id="costs">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Bill</p>
+          <span class="sec-no">04 / 06</span>
+        </div>
+        <h2>What it costs.</h2>
+        <p class="lead">The expensive part is the model, and caching is the whole defence.</p>
+        <table class="blocks">
+          <thead><tr><th>Scale</th><th>What you pay</th></tr></thead>
+          <tbody>
+            <tr><td>local</td><td><b>Free.</b> No API key, no internet, no account. Try everything before you spend anything.</td></tr>
+            <tr><td>hobby</td><td><b>Under $10/month.</b> A small VPS plus roughly $1 to $5 of tokens for a thousand questions a day.</td></tr>
+            <tr><td>repeat</td><td><b>Free after the first ask.</b> Answers are cached, canonical ones for an hour, so popular questions cost nothing.</td></tr>
+            <tr><td>tools</td><td><b>Never the model.</b> Time, UUID and hash are computed in process; the cache holds them at no token cost.</td></tr>
+          </tbody>
+        </table>
+        <dl class="specs stats" style="margin-top: 36px;">
+          <div><dt>Max question</dt><dd>200 B, or 1000 B via sessions</dd></div>
+          <div><dt>Max answer</dt><dd>256 B in A mode</dd></div>
+          <div><dt>Rate limit</dt><dd>20 burst, 1 per second</dd></div>
+          <div><dt>Per-user logs</dt><dd>none</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Honest -->
+    <section id="honest">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Honest</p>
+          <span class="sec-no">05 / 06</span>
+        </div>
+        <h2>Is this a hack?</h2>
+        <p class="lead">
+          It is a deliberate repurposing of the internet's oldest question-answering machine,
+          built with the controls a security team would ask for before you deploy it.
+        </p>
+        <table class="blocks">
+          <thead><tr><th>Control</th><th>Enforced</th></tr></thead>
+          <tbody>
+            <tr><td>amplification</td><td><b>Reply capped at 1232 B</b>, or the smaller size the requestor advertises. Classic clients get 512 with TC set and retry over TCP, which is not spoofable.</td></tr>
+            <tr><td>abuse</td><td><b>Per-client token bucket</b>, on by default, plus in-flight load shedding. An unthrottled public nameserver is the failure mode this project is designed against.</td></tr>
+            <tr><td>privacy</td><td><b>Zero per-user logging.</b> One startup line, nothing else. No question is written anywhere.</td></tr>
+            <tr><td>transport</td><td><b>TCP-only mode</b> for deployments that want no UDP surface at all.</td></tr>
+            <tr><td>supply</td><td><b>Zero runtime dependencies.</b> The DNS wire format is hand-written and unit-tested; three dev dependencies, lockfile committed.</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <p><b>Two honest limits.</b></p>
+          <p>Questions and answers travel in plaintext DNS. Do not send passwords through it.</p>
+          <p>A single question is short. Longer ones are split into parts automatically; this is not for pasting documents.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Docs -->
+    <section id="docs">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Docs</p>
+          <span class="sec-no">06 / 06</span>
+        </div>
+        <h2>Read it in full.</h2>
+        <p class="lead">Five documents, served from this same folder.</p>
+        <table class="blocks">
+          <thead><tr><th>File</th><th>Covers</th></tr></thead>
+          <tbody>
+            <tr><td><a href="read.html?doc=PLAIN.md">PLAIN.md</a></td><td><b>What this is, in plain words.</b> Start here.</td></tr>
+            <tr><td><a href="read.html?doc=PROTOCOL.md">PROTOCOL.md</a></td><td><b>The exact wire format.</b> QNAME encoding, TXT chunking, A mode, sessions, tokens, with a captured transcript.</td></tr>
+            <tr><td><a href="read.html?doc=AGENTS.md">AGENTS.md</a></td><td><b>For agents and devices.</b> Sandboxed callers, hostile networks, <code>gethostbyname</code> clients.</td></tr>
+            <tr><td><a href="read.html?doc=ARCHITECTURE.md">ARCHITECTURE.md</a></td><td><b>Components and caching.</b> How a query becomes an answer.</td></tr>
+            <tr><td><a href="read.html?doc=OPERATIONS.md">OPERATIONS.md</a></td><td><b>Deployment and configuration.</b> Every environment variable, plus a public-instance checklist.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section id="cta">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="kicker">Start</p>
+          <span class="sec-no"></span>
+        </div>
+        <h2>Ask anything, anywhere. No app.</h2>
+        <p class="lead">Free, open source, 35 kB, zero runtime dependencies. Runs anywhere Node runs.</p>
+        <div class="mast-actions" style="margin-bottom: 0;">
+          <a href="https://github.com/Omodaka9375/DNSi" class="btn-primary">View on GitHub</a>
+          <a href="https://www.npmjs.com/package/dnsi" class="btn-secondary">npm: dnsi</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
 
   <footer>
-    DNSi: Domain Name System Intelligence. 35 kB, zero runtime dependencies,
-    Node 22+. <a href="https://github.com/Omodaka9375/DNSi">Source on GitHub</a>.
+    <div class="wrap">
+      <div class="fn"><img src="logo.svg" alt="">dnsi_</div>
+      <p>
+        DNSi: Domain Name System Intelligence.<br />
+        <a href="https://github.com/Omodaka9375/DNSi">GitHub</a> .
+        <a href="https://www.npmjs.com/package/dnsi">npm</a> .
+        <a href="read.html?doc=OPERATIONS.md">Deploy</a> .
+        <a href="read.html?doc=PLAIN.md">PLAIN.md</a><br />
+        Node 22+ . 35 kB . zero runtime dependencies.<br />
+        From the same author as <a href="https://browserr.dev">Browserr</a>.
+      </p>
+    </div>
   </footer>
-</div>
 
+  <script>
+    /* ---- Mode (paper / ink), remembered across pages ---- */
+    const KEY = 'dnsi-mode';
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    const modeButtons = document.querySelectorAll('.modebtn');
+    /* Paper is the default regardless of the OS colour scheme; Ink is opt-in. */
+
+    function syncModeButtons(mode) {
+      for (const b of modeButtons) {
+        b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false');
+      }
+    }
+
+    function applyMode(mode) {
+      document.documentElement.setAttribute('data-mode', mode);
+      if (metaTheme) metaTheme.setAttribute('content', mode === 'dark' ? '#101010' : '#ffffff');
+      syncModeButtons(mode);
+      try { localStorage.setItem(KEY, mode); } catch (e) { /* private mode */ }
+    }
+
+    for (const b of modeButtons) {
+      b.addEventListener('click', () => applyMode(b.dataset.mode));
+    }
+
+    let savedMode = null;
+    try { savedMode = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+    applyMode(savedMode === 'dark' ? 'dark' : 'light');
+  </script>
+  <script>
+    /* ---- Question marquee ---- */
+    const QUESTIONS = [
+      'what is dnsi', 'why is the sky blue', 'how do I split a git commit',
+      'what is the time', 'hash of hello', 'how do I find large files on linux',
+      'give me a uuid', 'what is dnsi worth running', 'is this an ai',
+      'can a printer ask questions', 'what is a txt record', 'how do i connect to the vpn',
+    ];
+    const track = document.getElementById('marqueeTrack');
+    if (track) {
+      const chips = QUESTIONS.map((q) => '<span class="chip">' + q + '</span>').join('');
+      // Duplicate for a seamless -50% loop.
+      track.innerHTML = chips + chips;
+    }
+
+    /* ---- Copy buttons ---- */
+    for (const btn of document.querySelectorAll('.codebox .copy')) {
+      btn.addEventListener('click', async () => {
+        const pre = btn.parentElement.querySelector('pre');
+        if (!pre) return;
+        const text = pre.innerText;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (e2) { /* ignore */ }
+          ta.remove();
+        }
+        btn.dataset.done = '1';
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.dataset.done = '0'; btn.textContent = 'Copy'; }, 1600);
+      });
+    }
+
+    /* ---- Scroll reveal (animation only, never hides content) ---- */
+    const revealables = Array.from(document.querySelectorAll('section .wrap > *:not(.sec-head)'));
+    for (const el of revealables) el.classList.add('fade-in');
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+        }
+      }, { rootMargin: '0px 0px -10% 0px' });
+      for (const el of revealables) io.observe(el);
+    } else {
+      for (const el of revealables) el.classList.add('visible');
+    }
+
+    /* ---- Live GitHub info ---- */
+    (async () => {
+      const REPO = 'Omodaka9375/DNSi';
+      try {
+        const r = await fetch('https://api.github.com/repos/' + REPO, { headers: { Accept: 'application/vnd.github+json' } });
+        if (!r.ok) throw new Error(String(r.status));
+        const j = await r.json();
+        const stars = document.getElementById('heroStars');
+        if (stars && typeof j.stargazers_count === 'number') {
+          stars.textContent = j.stargazers_count.toLocaleString() + ' stars';
+        }
+      } catch (e) { /* offline or rate-limited: keep fallback text */ }
+    })();
+
+    /* ---- Animated device session ---- */
+    const body = document.getElementById('termBody');
+    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (body) {
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      function frame() {
+        body.innerHTML = '';
+        const frag = document.createDocumentFragment();
+
+        // 1. prompt (typed char by char)
+        const prompt = document.createElement('div');
+        prompt.className = 't-line';
+        prompt.innerHTML = '<span class="t-prompt">$ </span><span class="t-cmd"></span><span class="caret"></span>';
+        frag.appendChild(prompt);
+
+        // 2. in flight
+        const thinking = document.createElement('div');
+        thinking.className = 't-line t-out thinking-dots';
+        thinking.style.display = 'none';
+        thinking.textContent = 'query on udp/53';
+        frag.appendChild(thinking);
+
+        // 3. wire events, revealed one by one
+        const lines = [
+          { icon: 'Q', name: 'TXT', arg: 'what-is-the-time.ask.dnsi.dev' },
+          { icon: 'A', name: 'answer', arg: '', diff: true },
+          { icon: '>', name: 'CNAME', arg: 'what-is-dnsi.ask.dnsi.dev' },
+        ];
+        const toolEls = lines.map((l) => {
+          const row = document.createElement('div');
+          row.className = 't-line t-tool';
+          row.innerHTML =
+            '<div class="t-row"><span class="t-chip">' + l.icon + '</span>' +
+            '<span><span class="t-name">' + l.name + '</span> <span class="t-arg">' + esc(l.arg) + '</span></span></div>' +
+            (l.diff
+              ? '<div class="t-diff"><div class="t-add">2026-11-22T14:05:41Z</div><div class="t-add">TTL 60 . 12 bytes . not logged</div></div>'
+              : '');
+          frag.appendChild(row);
+          return row;
+        });
+
+        const result = document.createElement('div');
+        result.className = 't-line t-ok';
+        result.style.display = 'none';
+        result.textContent = 'answered in one round trip, zero dependencies';
+        frag.appendChild(result);
+
+        const end = document.createElement('div');
+        end.className = 't-line';
+        end.innerHTML = '<span class="t-prompt">$ </span><span class="caret"></span>';
+        end.style.display = 'none';
+        frag.appendChild(end);
+
+        body.appendChild(frag);
+        return { prompt, thinking, toolEls, result, end };
+      }
+
+      async function typeInto(el, text, speed) {
+        const target = el.querySelector('.t-cmd');
+        for (const ch of text) {
+          target.textContent += ch;
+          await sleep(speed);
+        }
+      }
+
+      async function run() {
+        for (;;) {
+          const els = frame();
+          if (REDUCED) {
+            els.prompt.querySelector('.t-cmd').textContent = 'npx dnsi-ask "what is the time"';
+            els.thinking.style.display = '';
+            for (const t of els.toolEls) t.classList.add('in');
+            els.result.style.display = '';
+            els.end.style.display = '';
+            return;
+          }
+          await sleep(500);
+          await typeInto(els.prompt, 'npx dnsi-ask "what is the time"', 34);
+          await sleep(280);
+          els.thinking.style.display = '';
+          await sleep(700);
+          els.thinking.style.display = 'none';
+          for (const t of els.toolEls) {
+            t.classList.add('in');
+            await sleep(520);
+          }
+          els.result.style.display = '';
+          await sleep(1400);
+          els.end.style.display = '';
+          await sleep(2600);
+        }
+      }
+      void run();
+    }
+  </script>
 </body>
 </html>
