@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-mode="light">
+<html lang="en" data-mode="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DNSi - ask anything, anywhere. No app.</title>
 <meta name="description" content="DNSi turns a DNS lookup into a question to an LLM. One command from any device, on any network. Zero runtime dependencies, Node 22+.">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#101010">
 <link rel="alternate" type="text/plain" href="PLAIN.md" title="PLAIN.md">
 
 <meta property="og:title" content="DNSi - ask anything, anywhere. No app." />
@@ -708,7 +708,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
     const KEY = 'dnsi-mode';
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     const modeButtons = document.querySelectorAll('.modebtn');
-    /* Paper is the default regardless of the OS colour scheme; Ink is opt-in. */
+    /* Ink is the default; Paper is opt-in. The stored choice always wins. */
 
     function syncModeButtons(mode) {
       for (const b of modeButtons) {
@@ -729,7 +729,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
 
     let savedMode = null;
     try { savedMode = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
-    applyMode(savedMode === 'dark' ? 'dark' : 'light');
+    applyMode(savedMode === 'light' ? 'light' : 'dark');
   </script>
   <script>
     /* ---- Question marquee ---- */
