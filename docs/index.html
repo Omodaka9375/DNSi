@@ -21,10 +21,9 @@
 <meta name="twitter:description" content="A question box that rides on DNS. Zero runtime dependencies, Node 22+." />
 <meta name="twitter:image" content="https://dnsi.dev/og.png" />
 
-<link rel="icon" type="image/svg+xml" href="logo.svg">
-<!-- iOS ignores SVG apple-touch-icons; use the PNG. -->
-<link rel="apple-touch-icon" href="favicon.png">
-<link rel="icon" type="image/png" href="favicon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <style>
 /* ----------------------------------------------------------------
@@ -101,7 +100,7 @@ code { font-family: var(--mono); font-size: 0.85em; }
 .topbar a { color: var(--ink-2); text-decoration: none; }
 .topbar a:hover { color: var(--ink); text-decoration: underline; }
 .topbar .brand { color: var(--ink); font-weight: 700; }
-.topbar .brand img { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; border-radius: 2px; }
+.topbar .brand img { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; }
 .topbar-links { display: flex; gap: 14px; }
 .topbar-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .topbar-modes { display: inline-flex; align-items: center; gap: 0; }
@@ -119,7 +118,7 @@ code { font-family: var(--mono); font-size: 0.85em; }
   margin: 0 0 20px;
   white-space: nowrap;
 }
-.masthead h1 img { display: inline-block; width: 0.82em; height: 0.82em; vertical-align: middle; margin-right: 0.22em; border-radius: 0.14em; }
+.masthead h1 img { display: inline-block; width: 0.82em; height: 0.82em; vertical-align: middle; margin-right: 0.22em; }
 .masthead h1 .cursor { color: var(--ink-4); font-weight: 400; }
 .masthead .dek {
   font-family: var(--serif);
@@ -309,7 +308,7 @@ table.blocks.compare td:first-child { padding-right: 24px; }
 footer { background: var(--ink); color: var(--paper); border-bottom: 0; }
 footer .wrap { padding-top: 40px; padding-bottom: 40px; display: flex; flex-wrap: wrap; gap: 32px; justify-content: space-between; align-items: baseline; }
 footer .fn { font-family: var(--serif); font-size: 1.3rem; }
-footer .fn img { display: inline-block; width: 22px; height: 22px; vertical-align: -4px; margin-right: 10px; border-radius: 3px; }
+footer .fn img { display: inline-block; width: 22px; height: 22px; vertical-align: -4px; margin-right: 10px; }
 footer p { margin: 0; font-family: var(--mono); font-size: 0.72rem; line-height: 1.8; color: #a0a09e; max-width: 46ch; }
 footer a { color: var(--paper); }
 html[data-mode="dark"] footer p { color: #909090; }
@@ -353,7 +352,7 @@ html[data-mode="dark"] footer p { color: #909090; }
   <!-- Top rule -->
   <div class="topbar">
     <div class="wrap">
-      <span class="brand"><a href="#"><img src="logo.svg" alt="">dnsi / server</a></span>
+      <span class="brand"><a href="#"><img src="icon.png" alt="">dnsi / server</a></span>
       <span class="topbar-links">
         <a href="#what">What</a>
         <a href="#use">Use</a>
@@ -376,7 +375,7 @@ html[data-mode="dark"] footer p { color: #909090; }
     <div class="wrap">
       <div class="hero-grid">
         <div class="hero-copy">
-          <h1><img src="logo.svg" alt="DNSi icon">dnsi<span class="cursor">_</span></h1>
+          <h1><img src="icon.png" alt="DNSi icon">dnsi<span class="cursor">_</span></h1>
           <p class="dek">
             A <strong>question box that rides on DNS</strong>. Every phone, laptop, router
             and controller on earth can already look up a name. DNSi turns that lookup into
@@ -613,7 +612,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
 
   <footer>
     <div class="wrap">
-      <div class="fn"><img src="logo.svg" alt="">dnsi_</div>
+      <div class="fn"><img src="icon.png" alt="">dnsi_</div>
       <p>
         DNSi: Domain Name System Intelligence.<br />
         <a href="https://github.com/Omodaka9375/DNSi">GitHub</a> .

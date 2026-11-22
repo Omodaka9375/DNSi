@@ -1,4 +1,4 @@
-<h1><img src="docs/logo.svg" alt="DNSi" height="27" style="vertical-align:-16px"> DNSi</h1>
+<h1><img src="docs/icon.png" alt="DNSi" width="27" height="27" style="vertical-align:-8px"> DNSi</h1>
 
 [![npm](https://img.shields.io/npm/v/dnsi?label=npm%20dnsi)](https://www.npmjs.com/package/dnsi)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
