@@ -306,6 +306,14 @@ table.blocks tr.group:first-child td { padding-top: 4px; }
 .askout { padding: 12px 14px; font-family: var(--mono); font-size: 0.8rem; line-height: 1.6; color: var(--ink-2); border-top: 1px solid var(--rule); min-height: 1.6em; white-space: pre-line; overflow-wrap: anywhere; }
 .askout .a-ok { color: var(--ink); }
 .askout .a-dim { color: var(--ink-4); }
+.a-rels { margin-top: 10px; }
+.a-rels-label { font-family: var(--mono); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 4px; }
+.a-rel {
+  display: inline-block; margin: 2px 6px 2px 0; padding: 2px 8px;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--ink-2);
+  background: var(--paper); border: 1px solid var(--rule); cursor: pointer;
+}
+.a-rel:hover { border-color: var(--ink); color: var(--ink); }
 
 /* ---- code blocks with copy ---- */
 .codebox { position: relative; margin: 0 0 14px; }
@@ -498,7 +506,7 @@ b'A question box that rides on DNS: ...'</pre>
         <div class="askbox" id="askbox">
           <div class="askbox-head">live: resolve from this page over DNS-over-HTTPS</div>
           <div class="askrow">
-            <input id="askInput" type="text" placeholder="what is dnsi" spellcheck="false" aria-label="Question to resolve over DNS">
+            <input id="askInput" type="text" placeholder="what is dnsi - or: tool time" spellcheck="false" aria-label="Question to resolve over DNS">
             <button id="askBtn" type="button">Ask</button>
           </div>
           <div class="askout" id="askOut" aria-live="polite"></div>
@@ -777,15 +785,65 @@ pnpm ask -- "how do I split a git commit" --local</pre>
 
     /* ---- Live ask over DNS-over-HTTPS (works from GitHub Pages, no backend) ----
        Server text is injected with textContent only, never innerHTML. */
-    function encodeQname(question, zone) {
-      const bytes = new TextEncoder().encode(question);
+    const ASK_ZONE = 'dnsi.dev';
+    const BARE_TOOLS = ['time', 'uuid', 'echo', 'hash'];
+
+    function encodeSegment(text) {
+      const bytes = new TextEncoder().encode(text);
       let out = '';
       for (const b of bytes) {
         if (b === 0x20) out += '-';
         else if ((b >= 0x61 && b <= 0x7a) || (b >= 0x30 && b <= 0x39)) out += String.fromCharCode(b);
         else out += '%' + b.toString(16).toUpperCase().padStart(2, '0');
       }
-      return out + '.ask.' + zone;
+      return out;
+    }
+
+    function encodeQname(question, zone) {
+      return encodeSegment(question) + '.ask.' + zone;
+    }
+
+    function qnameFor(question) {
+      const bare = question.toLowerCase();
+      // explicit tool syntax: "tool <name> [args]" or a bare tool name
+      if (bare.startsWith('tool ')) {
+        const rest = bare.slice(5);
+        const sp = rest.indexOf(' ');
+        const name = sp === -1 ? rest : rest.slice(0, sp);
+        const args = sp === -1 ? '' : rest.slice(sp + 1).trim();
+        if (/^[a-z0-9-]+$/.test(name)) {
+          return 'tool.' + name + (args ? '.' + encodeSegment(args) : '') + '.ask.' + ASK_ZONE;
+        }
+      }
+      if (BARE_TOOLS.includes(bare)) {
+        return 'tool.' + bare + '.ask.' + ASK_ZONE;
+      }
+      return encodeQname(question, ASK_ZONE);
+    }
+
+    function decodeQname(qname) {
+      const suffix = '.ask.' + ASK_ZONE;
+      let s = qname;
+      if (s.toLowerCase().endsWith(suffix)) s = s.slice(0, -suffix.length);
+      // drop a token label pair (t.<token>) if present
+      const labels = [];
+      const parts = s.split('.');
+      for (let i = 0; i < parts.length; i += 1) {
+        if (parts[i] === 't' && i + 1 < parts.length) { i += 1; continue; }
+        labels.push(parts[i]);
+      }
+      const stream = labels.join('');
+      const bytes = [];
+      for (let i = 0; i < stream.length; ) {
+        if (stream[i] === '%') {
+          bytes.push(parseInt(stream.slice(i + 1, i + 3), 16) || 0);
+          i += 3;
+        } else {
+          bytes.push(stream.charCodeAt(i) === 45 ? 32 : stream.charCodeAt(i));
+          i += 1;
+        }
+      }
+      return new TextDecoder().decode(new Uint8Array(bytes));
     }
 
     async function askLive() {
@@ -794,7 +852,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       const q = (input.value || '').trim();
       if (!q) return;
       out.textContent = 'resolving ' + q + ' ...';
-      const qname = encodeQname(q, 'dnsi.dev');
+      const qname = qnameFor(q);
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
@@ -805,11 +863,43 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         if (j.Status !== 0) throw new Error('rcode ' + j.Status);
         const txts = (j.Answer || []).filter((a) => a.type === 16).map((a) => (a.data || '').replace(/"/g, '')).join('');
         if (!txts) throw new Error('no TXT answer');
-        out.innerHTML = '<span class="a-ok"></span>';
-        out.firstChild.textContent = txts;
+
+        // split the answer text from the related hints, render hints clickable
+        const cut = txts.indexOf('related:');
+        const answerText = (cut === -1 ? txts : txts.slice(0, cut)).trimEnd();
+        const hints = [...txts.matchAll(/dig TXT (\S+)/g)].map((m) => m[1]);
+
+        out.textContent = '';
+        const span = document.createElement('span');
+        span.className = 'a-ok';
+        span.textContent = answerText;
+        out.appendChild(span);
+        if (hints.length > 0) {
+          const wrap = document.createElement('div');
+          wrap.className = 'a-rels';
+          const label = document.createElement('div');
+          label.className = 'a-rels-label';
+          label.textContent = 'related questions:';
+          wrap.appendChild(label);
+          for (const h of hints) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'a-rel';
+            btn.textContent = decodeQname(h);
+            btn.addEventListener('click', () => {
+              input.value = btn.textContent || '';
+              askLive();
+            });
+            wrap.appendChild(btn);
+          }
+          out.appendChild(wrap);
+        }
       } catch (e) {
-        out.innerHTML = '<span class="a-dim"></span>';
-        out.firstChild.textContent = 'No answer just now - is the public instance awake? You can always run your own: npx dnsi-ask "' + q + '" --local';
+        out.textContent = '';
+        const span = document.createElement('span');
+        span.className = 'a-dim';
+        span.textContent = 'No answer just now - is the public instance awake? You can always run your own: npx dnsi-ask "' + q + '" --local';
+        out.appendChild(span);
       }
     }
 
