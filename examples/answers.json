@@ -6,7 +6,7 @@
       "related": ["how do i use dnsi", "what can dnsi be used for", "is there an ai behind this server"]
     },
     "how do i use dnsi": {
-      "answer": "From a terminal: npx dnsi-ask \"your question\". That asks a DNSi server over plain DNS. You can also run your own server with npm install -g dnsi, then dnsi-server. Any DNS tool (dig, nslookup) works too.",
+      "answer": "From a terminal: npx @omodaka/dnsi-ask \"your question\". That asks a DNSi server over plain DNS. You can also run your own server with npm install -g @omodaka/dnsi, then dnsi-server. Any DNS tool (dig, nslookup) works too.",
       "related": ["does dnsi need an api key", "what tools are available"]
     },
     "does dnsi need an api key": {
@@ -38,11 +38,11 @@
       "related": ["is this an ai", "what can dnsi be used for"]
     },
     "who made dnsi": {
-      "answer": "DNSi is an open-source experiment by @Omodaka9375. Code: github.com/Omodaka9375/DNSi - site: dnsi.dev. The npm package is dnsi (zero runtime dependencies, two commands: dnsi-server and dnsi-ask).",
+      "answer": "DNSi is an open-source experiment by @Omodaka9375. Code: github.com/Omodaka9375/DNSi - site: dnsi.dev. The npm package is @omodaka/dnsi (zero runtime dependencies, two commands: dnsi-server and dnsi-ask).",
       "related": ["what is dnsi", "how do i use dnsi"]
     },
     "what is the time": {
-      "answer": "For live UTC time, query the built-in time tool: dnsi-ask --tool time (or dig +short TXT tool.time.ask.dnsi.dev). Tool calls execute in microseconds and never touch an AI model.",
+      "answer": "For live UTC time, query the built-in time tool: npx @omodaka/dnsi-ask --tool time (or dig +short TXT tool.time.ask.dnsi.dev). Tool calls execute in microseconds and never touch an AI model.",
       "related": ["what tools are available", "how do i use dnsi"]
     },
     "how do i split a git commit": {

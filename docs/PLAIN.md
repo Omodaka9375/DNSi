@@ -21,13 +21,13 @@ dnsi:   "Because air scatters blue light more than red..."   (as a text answer)
 The fastest way to feel it:
 
 ```bash
-npx dnsi-ask "what is dnsi"
+npx @omodaka/dnsi-ask "what is dnsi"
 ```
 
 Or ask one of the built-in tools (a clock, a UUID generator, a hash):
 
 ```bash
-npx dnsi-ask --tool time
+npx @omodaka/dnsi-ask --tool time
 ```
 
 Or run your own in one minute, no account, no API key:

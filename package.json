@@ -1,5 +1,5 @@
 {
-  "name": "dnsi",
+  "name": "@omodaka/dnsi",
   "version": "0.3.1",
   "private": false,
   "type": "module",

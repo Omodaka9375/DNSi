@@ -1,6 +1,6 @@
 <h1><img src="docs/icon.png" alt="DNSi" width="27" height="27" style="vertical-align:-8px"> DNSi</h1>
 
-[![npm](https://img.shields.io/npm/v/dnsi?label=npm%20dnsi)](https://www.npmjs.com/package/dnsi)
+[![npm](https://img.shields.io/npm/v/@omodaka/dnsi?label=npm%20dnsi)](https://www.npmjs.com/package/@omodaka/dnsi)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-green)](package.json)
 
@@ -71,9 +71,9 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-npx dnsi-ask "what is dnsi"   # asks the public instance at dnsi.dev:
-                              # prepared answers about DNSi, no AI, no key needed
-npx dnsi-ask --tool time      # built-in tools: time, uuid, echo, hash
+npx @omodaka/dnsi-ask "what is dnsi"   # asks the public instance at dnsi.dev:
+                                       # prepared answers about DNSi, no AI, no key needed
+npx @omodaka/dnsi-ask --tool time      # built-in tools: time, uuid, echo, hash
 ```
 
 Run your own:
@@ -115,7 +115,7 @@ Questions and answers are plain text, so do not send passwords through it.
 ## Install
 
 ```bash
-npm install -g dnsi
+npm install -g @omodaka/dnsi
 dnsi-ask "your question"    # asks the public instance (dnsi.dev) by default
 dnsi-ask "your question" --local   # asks a server on your own machine
 dnsi-ask --tool time        # built-in tools: time, uuid, echo, hash

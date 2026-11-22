@@ -51,7 +51,7 @@ control over TXT chunking and CNAME answers.
 | `src/backend.ts` | `EchoBackend`, `OpenAICompatBackend` (abort-timeout fetch), `CannedBackend` |
 | `src/index.ts` | Entrypoint: env -> options, one startup log line, nothing else       |
 | `src/query.ts` | Reference client (`queryUdp` / `queryTcp`, transaction-ID checked)   |
-| `src/ask-cli.ts` | `dnsi-ask`: flags, `--tool`, auto-sessions, clean errors           |
+| `src/ask-cli.ts` | `dnsi-ask` (npm `@omodaka/dnsi`): flags, `--tool`, auto-sessions, clean errors |
 
 ## Request flow
 

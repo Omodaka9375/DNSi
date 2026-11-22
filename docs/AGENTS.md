@@ -97,6 +97,7 @@ dig TXT what-is-dnsi.ask.dnsi.test @server   ; follow the graph
 
 A TypeScript reference client ships in `src/query.ts`
 (`queryUdp` / `queryTcp`, plus `aRecordsToText` for the A mode); the CLI
-is `dnsi-ask "question" [--tcp] [--a] [--tool <name>]` and builds
+is `dnsi-ask "question" [--tcp] [--a] [--tool <name>]`
+(`npx @omodaka/dnsi-ask ...` without installing) and builds
 question, session and tool QNAMEs for you (`buildQuestionQname`,
 `buildSessionQname`, `buildToolQname` in `src/name.ts`).
