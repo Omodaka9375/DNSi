@@ -132,6 +132,41 @@ test("DoT and TCP share the same wire framing", async () => {
   assert.equal(viaTcp.txt, viaDot.txt);
 });
 
+test("DoH: CORS headers allow cross-origin browser queries", async () => {
+  const qname = buildQuestionQname("cors check", ZONE) ?? "";
+  const wire = buildWireQuery(qname);
+  // preflight
+  const pre = await new Promise<number>((resolve, reject) => {
+    const req = http.request(
+      { host: "127.0.0.1", port: doh.port, path: "/dns-query", method: "OPTIONS" },
+      (res) => { res.resume(); res.on("end", () => resolve(res.statusCode)); },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+  assert.equal(pre, 204);
+  const r = await new Promise<{ status: number | undefined; cors: string | undefined }>(
+    (resolve, reject) => {
+      const req = http.request(
+        {
+          host: "127.0.0.1", port: doh.port, path: "/dns-query", method: "POST",
+          headers: { "content-type": "application/dns-message" },
+        },
+        (res) => {
+          res.resume();
+          res.on("end", () =>
+            resolve({ status: res.statusCode, cors: res.headers["access-control-allow-origin"] }),
+          );
+        },
+      );
+      req.on("error", reject);
+      req.end(wire);
+    },
+  );
+  assert.equal(r.status, 200);
+  assert.equal(r.cors, "*");
+});
+
 /** Minimal wire query builder: header + QNAME (with root terminator) + TXT. */
 function buildWireQuery(qname: string): Buffer {
   const id = Buffer.alloc(2);
@@ -183,7 +218,7 @@ function dotQuery(port: number, qname: string, caCert: string): Promise<DotResp>
         for (let n = 0; n < an; n += 1) {
           if (msg[i] & 0xc0) i += 2;
           else { while (msg[i] !== 0) i += msg[i] + 1; i += 1; }
-          const type = msg.readUInt16BE(i + 2);
+          const type = msg.readUInt16BE(i);
           const rdlen = msg.readUInt16BE(i + 8);
           const rdata = msg.subarray(i + 10, i + 10 + rdlen);
           if (type === 16) {

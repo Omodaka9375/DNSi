@@ -1,7 +1,7 @@
 <h1><img src="docs/icon.png" alt="DNSi" width="27" height="27" style="vertical-align:-8px"> DNSi</h1>
 
 [![npm](https://img.shields.io/npm/v/@omodaka/dnsi?label=npm%20dnsi)](https://www.npmjs.com/package/@omodaka/dnsi)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-green)](package.json)
 
 **Access LLMs from any device, on any network, using nothing but DNS.**
@@ -11,7 +11,11 @@ controller on earth can look up a domain name. DNSi turns that lookup into a
 question, and the answer comes back as the reply.
 
 ```bash
-pnpm ask -- "how do I split a git commit"
+npm install -g @omodaka/dnsi
+dnsi-ask --tool time
+# 2026-11-22T10:23:15.832Z
+
+dnsi-ask "how do I split a git commit"
 # answer comes back, plus related questions worth asking next
 ```
 
@@ -45,9 +49,10 @@ in exactly those places, because it is nothing but a name lookup.
 Asking an AI over DNS exists as demo projects. DNSi is built as a service
 instead of a demo:
 
-- **Tool calls, not just chat.** `dnsi-ask --tool time` (or
-  `dig TXT tool.time.ask.<zone>`) answers locally in microseconds and
-  never touches the AI.
+- **Tool calls, not just chat.** Four built-ins - `time`, `uuid`, `echo`,
+  `hash` - answer locally in microseconds and never touch the AI. From any
+  language: `gethostbyname("tool.time.ask.dnsi.dev")` or
+  `dig +short TXT tool.hash.hello.ask.dnsi.dev`.
 - **Dumb devices first.** A plain `gethostbyname` call returns the answer
   text. No TXT parsing, no special client.
 - **A knowledge graph.** Every answer carries related questions as resolvable
@@ -71,20 +76,38 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-npx --package=@omodaka/dnsi dnsi-ask "what is dnsi"
+npm install -g @omodaka/dnsi
+dnsi-ask "what is dnsi"
 # asks the public instance at dnsi.dev: prepared answers about DNSi,
-# no AI, no key needed. Or: npm install -g @omodaka/dnsi, then dnsi-ask.
-npx --package=@omodaka/dnsi dnsi-ask --tool time   # tools: time, uuid, echo, hash
+# no AI, no key needed
 ```
 
-Run your own:
+**Built-in tools** (answered locally in microseconds, never touch an AI):
 
 ```bash
-pnpm install
-pnpm start                       # window 1: the server (demo mode, no API key)
-
-pnpm ask -- "what is dnsi" --local   # window 2: ask your own server
+dnsi-ask --tool time          # current UTC time
+dnsi-ask --tool uuid          # fresh random UUID
+dnsi-ask --tool echo hi       # repeats your text
+dnsi-ask --tool hash hello    # sha256("hello")
+# every tool also answers over plain dig: dig +short TXT tool.time.ask.dnsi.dev
 ```
+
+Or without installing:
+
+```bash
+npx --package=@omodaka/dnsi dnsi-ask --tool time
+```
+
+Run your own server:
+
+```bash
+npm install -g @omodaka/dnsi
+dnsi-server                        # demo mode: zone dnsi.test, 127.0.0.1:5353, no API key
+dnsi-ask "what is dnsi" --local    # second window: ask YOUR server
+```
+
+From source instead: `git clone` this repo, `pnpm install`, `pnpm start`,
+`pnpm ask -- "..." --local`.
 
 Serve a fixed set of prepared answers (a topic demo with no AI):
 
@@ -126,6 +149,10 @@ dnsi-server                 # run your own nameserver
 
 Requires Node 22+. 35 kB download, zero runtime dependencies.
 
+**Deploying for a team or the internet?** [OPERATIONS.md](docs/OPERATIONS.md)
+has every environment variable, the systemd unit, and a public-instance
+checklist (zone delegation, TLS for DoT/DoH, counters).
+
 ## Documentation
 
 - [PLAIN.md](docs/PLAIN.md) - what this is in plain words, and when to use it
@@ -137,6 +164,6 @@ Requires Node 22+. 35 kB download, zero runtime dependencies.
 ## Development
 
 ```bash
-pnpm verify      # typecheck + 47 tests
+pnpm verify      # typecheck + 66 tests
 pnpm build       # emit dist/
 ```

@@ -1,13 +1,13 @@
 {
   "name": "@omodaka/dnsi",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": false,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "description": "DNSi: Ask an AI a question from any device, on any network, using nothing but DNS.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://dnsi.dev",
   "repository": {
     "type": "git",

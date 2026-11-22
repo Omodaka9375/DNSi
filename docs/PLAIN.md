@@ -21,16 +21,21 @@ dnsi:   "Because air scatters blue light more than red..."   (as a text answer)
 The fastest way to feel it:
 
 ```bash
-npx --package=@omodaka/dnsi dnsi-ask "what is dnsi"
+npm install -g @omodaka/dnsi
+dnsi-ask "what is dnsi"
 ```
 
-Or ask one of the built-in tools (a clock, a UUID generator, a hash):
+Built-in tools answer instantly, with no AI involved (a clock, a UUID
+generator, a hash, an echo):
 
 ```bash
-npx --package=@omodaka/dnsi dnsi-ask --tool time
+dnsi-ask --tool time       # current UTC time
+dnsi-ask --tool uuid       # fresh random UUID
+dnsi-ask --tool echo hi    # repeats your text
+dnsi-ask --tool hash hello # sha256("hello")
 ```
 
-Or run your own in one minute, no account, no API key:
+Run your own in one minute, no account, no API key:
 
 ```bash
 pnpm install && pnpm start     # window 1

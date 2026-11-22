@@ -8,7 +8,7 @@ import {
 } from "./name.js";
 import { queryTcp, queryUdp, aRecordsToText, RR_A, type DnsiResponse } from "./query.js";
 
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 
 const USAGE = [
   'usage: dnsi-ask "your question" [options]',

@@ -13,6 +13,20 @@ import type { Dnsi } from "./server.js";
 
 const MAX_DOH_BODY = 64 * 1024; // DNS messages are tiny; refuse everything else
 
+/**
+ * Cross-origin requests are the point: a web page (dnsi.dev) is a different
+ * origin than the DoH host (ns.dnsi.dev), and RFC 8484 is meant to be used
+ * by browsers. Answer preflights and mark actual queries readable. The
+ * endpoint carries no state and no secrets, so a wide-open origin policy
+ * is the correct posture.
+ */
+const CORS_HEADERS: Record<string, string> = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "86400",
+};
+
 export type DohOptions = {
   port: number;
   /** TLS cert/key: omit to run plain HTTP (behind a local proxy / tests). */
@@ -55,6 +69,11 @@ export async function startDoh(dnsi: Dnsi, opts: DohOptions): Promise<DohServer>
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): void => {
+    // Browsers preflight cross-origin POSTs; answer before anything else.
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, CORS_HEADERS).end();
+      return;
+    }
     const chunks: Buffer[] = [];
     let size = 0;
     let aborted = false;
@@ -75,31 +94,34 @@ export async function startDoh(dnsi: Dnsi, opts: DohOptions): Promise<DohServer>
       if (aborted) return;
       const url = new URL(req.url ?? "/", `http://localhost`);
       if (url.pathname !== "/dns-query") {
-        res.writeHead(404, { "content-type": "text/plain" }).end("not a DNS endpoint");
+        res.writeHead(404, { "content-type": "text/plain", ...CORS_HEADERS }).end(
+          "not a DNS endpoint",
+        );
         return;
       }
       const body = chunks.length > 0 ? Buffer.concat(chunks) : null;
       const query = extractQuery(req, url, body);
       if (!query) {
         // RFC 8484 4.1: a malformed request is HTTP 400
-        res.writeHead(400).end();
+        res.writeHead(400, CORS_HEADERS).end();
         return;
       }
       void dnsi
         .handleQuery(query, req.socket.remoteAddress ?? null, "tcp")
         .then((resp) => {
           if (!resp) {
-            res.writeHead(400).end(); // not a DNS query we can parse
+            res.writeHead(400, CORS_HEADERS).end(); // not a DNS query we can parse
             return;
           }
           res.writeHead(200, {
             "content-type": "application/dns-message",
             "cache-control": "max-age=60",
+            ...CORS_HEADERS,
           });
           res.end(resp);
         })
         .catch(() => {
-          if (!res.writableEnded) res.writeHead(500).end();
+          if (!res.writableEnded) res.writeHead(500, CORS_HEADERS).end();
         });
     });
   };

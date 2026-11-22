@@ -131,6 +131,23 @@ code { font-family: var(--mono); font-size: 0.85em; }
 .masthead .dek strong { color: var(--ink); font-weight: 600; }
 
 .mast-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+
+/* ---- built-in tool buttons (hero) ---- */
+.toolgrid { margin: 0 0 34px; }
+.tgrid-label {
+  display: block; font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 10px;
+}
+.tgrid-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.tg {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  background: var(--paper-2); border: 1px solid var(--rule-dark); cursor: pointer;
+  padding: 10px 16px; text-align: left; font-family: var(--mono);
+}
+.tg:hover { border-color: var(--ink); background: var(--paper-3); }
+.tg code { font-size: 0.95rem; font-weight: 700; color: var(--ink); }
+.tg small { font-size: 0.68rem; color: var(--ink-3); letter-spacing: 0.02em; }
+@media (max-width: 640px) { .tgrid-row { gap: 8px; } .tg { padding: 8px 12px; } }
 .btn-primary, .btn-secondary {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
@@ -406,7 +423,7 @@ html[data-mode="dark"] footer p { color: #909090; }
         <a href="https://github.com/Omodaka9375/DNSi">GitHub</a>
       </span>
       <span class="topbar-right">
-        <span><span id="heroVersion">v0.4.1</span> . <b id="heroStars">open source</b></span>
+        <span><span id="heroVersion">v0.4.2</span> . Apache-2.0</span>
         <span id="heroStats" style="display:none"> . <b id="heroStatsText"></b></span>
         <span class="topbar-modes" role="group" aria-label="Colour mode">
           <button class="modebtn" type="button" data-mode="light" aria-pressed="false">Paper</button>
@@ -427,6 +444,15 @@ html[data-mode="dark"] footer p { color: #909090; }
             and controller on earth can already look up a name. DNSi turns that lookup into
             a question, and the answer comes back as the reply.
           </p>
+          <div class="toolgrid">
+            <span class="tgrid-label">built-in tools, answered instantly, no AI:</span>
+            <div class="tgrid-row">
+              <button class="tg" type="button" data-q="tool time"><code>time</code><small>current UTC time</small></button>
+              <button class="tg" type="button" data-q="tool uuid"><code>uuid</code><small>random UUID</small></button>
+              <button class="tg" type="button" data-q="tool echo hi"><code>echo</code><small>repeats your text</small></button>
+              <button class="tg" type="button" data-q="tool hash hello"><code>hash</code><small>sha256 of args</small></button>
+            </div>
+          </div>
           <div class="mast-actions">
             <a href="https://github.com/Omodaka9375/DNSi" class="btn-primary">View on GitHub</a>
             <a href="read.html?doc=PLAIN.md" class="btn-secondary">Read the docs</a>
@@ -451,7 +477,8 @@ html[data-mode="dark"] footer p { color: #909090; }
         <div><dt>Runtime</dt><dd>Node 22+</dd></div>
         <div><dt>Size</dt><dd>35 kB</dd></div>
         <div><dt>Dependencies</dt><dd>0</dd></div>
-        <div><dt>Transports</dt><dd>UDP and TCP</dd></div>
+        <div><dt>Transports</dt><dd>UDP . TCP . DoT . DoH</dd></div>
+        <div><dt>License</dt><dd>Apache-2.0</dd></div>
       </dl>
     </div>
   </header>
@@ -480,21 +507,30 @@ html[data-mode="dark"] footer p { color: #909090; }
             <button class="ctab" type="button" data-pane="py" aria-pressed="false">Python</button>
           </div>
 <pre data-pane="cli">$ npm i -g @omodaka/dnsi
+$ dnsi-ask --tool time
+2026-11-22T10:23:15.832Z
+
+$ dnsi-ask --tool hash hello
+2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+
+$ dnsi-ask --tool uuid
+3f2b8c1e-9d4a-4e7b-b2c1-8a5f6e9d0c3a
+
 $ dnsi-ask "what is dnsi"
 A question box that rides on DNS: ask by name, get the answer back as TXT records.
 
 related:
   dig TXT what-is-dnsi-history.ask.dnsi.dev
-  dig TXT who-is-dnsi-for.ask.dnsi.dev
+  dig TXT who-is-dnsi-for.ask.dnsi.dev</pre>
+<pre data-pane="dig" hidden>$ dig +short TXT tool.time.ask.dnsi.dev
+"2026-11-22T10:23:15.832Z"
 
-$ dnsi-ask --tool time
-2026-11-22T10:23:15.832Z</pre>
-<pre data-pane="dig" hidden>$ dig +short TXT what-is-dnsi.ask.dnsi.dev
+$ dig +short TXT tool.hash.hello.ask.dnsi.dev
+"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+$ dig +short TXT what-is-dnsi.ask.dnsi.dev
 "A question box that rides on DNS: ask by name, get the answer"
- "back as TXT records."
-
-$ dig +short TXT tool.time.ask.dnsi.dev
-"2026-11-22T10:23:15.832Z"</pre>
+ "back as TXT records."</pre>
 <pre data-pane="c" hidden>/* the complete client: gethostbyname returns the answer bytes */
 struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
 /* h->h_addr_list = UTF-8 answer, 4 bytes per address */</pre>
@@ -506,7 +542,7 @@ b'A question box that rides on DNS: ...'</pre>
         </div>
 
         <div class="askbox" id="askbox">
-          <div class="askbox-head">live: resolve from this page over DNS-over-HTTPS</div>
+          <div class="askbox-head">live: resolved from this page over our own DNS-over-HTTPS</div>
           <div class="askrow">
             <input id="askInput" type="text" placeholder="what is dnsi - or: tool time" spellcheck="false" aria-label="Question to resolve over DNS">
             <button id="askBtn" type="button">Ask</button>
@@ -572,8 +608,12 @@ struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
           <p class="kicker">Deploy</p>
           <span class="sec-no">03 / 06</span>
         </div>
-        <h2>Three ways to run it.</h2>
-        <p class="lead">Same code, same protocol. Only the reach and the cost change.</p>
+        <h2>Run your own in two minutes.</h2>
+        <p class="lead">
+          Install the package, start the server, ask it. Everything below uses the published
+          npm package - no clone needed. <a href="read.html?doc=OPERATIONS.md">OPERATIONS.md</a>
+          covers every environment variable and a full public-deployment checklist.
+        </p>
         <div class="tscroll">
         <table class="blocks compare">
           <thead><tr><th></th><th>Where</th><th>Who can ask</th><th>Good for</th><th>Cost</th></tr></thead>
@@ -585,16 +625,26 @@ struct hostent *h = gethostbyname("what-is-dnsi.ask.dnsi.test");
         </table>
         </div>
         <div class="codebox" style="margin-top: 28px;">
-<pre># window 1 - the server, no configuration needed
-pnpm install &amp;&amp; pnpm start
+<pre># 1. install (needs Node 22+)
+npm install -g @omodaka/dnsi
 
-# window 2 - ask it anything
-pnpm ask -- "how do I split a git commit" --local</pre>
+# 2. ask the public instance - no setup at all
+dnsi-ask "what is dnsi"
+dnsi-ask --tool time
+
+# 3. run YOUR OWN server on this machine (demo mode, no key)
+dnsi-server            # serves zone dnsi.test on 127.0.0.1:5353
+
+# 4. ask your own server
+dnsi-ask "how do I split a git commit" --local</pre>
           <button class="copy" type="button" aria-label="Copy commands">Copy</button>
         </div>
         <p class="lead" style="margin: 18px 0 0;">
-          Point it at any OpenAI-compatible endpoint with three environment variables to get
-          live model answers. With none set, it serves prepared answers about itself.
+          Prefer cloning? <code>git clone</code> then <code>pnpm install &amp;&amp; pnpm start</code> runs the
+          same server from source. Point it at any OpenAI-compatible endpoint with three
+          environment variables for live model answers; with none set it serves prepared
+          answers about itself. Full deployment guide:
+          <a href="read.html?doc=OPERATIONS.md">OPERATIONS.md</a>.
         </p>
       </div>
     </section>
@@ -680,10 +730,10 @@ pnpm ask -- "how do I split a git commit" --local</pre>
           <span class="sec-no"></span>
         </div>
         <h2>Ask anything, anywhere. No app.</h2>
-        <p class="lead">Free, open source, 35 kB, zero runtime dependencies. Runs anywhere Node runs.</p>
+        <p class="lead">Free and open source under the Apache License 2.0. 35 kB, zero runtime dependencies. Runs anywhere Node 22+ runs.</p>
         <div class="mast-actions" style="margin-bottom: 0;">
-          <a href="https://github.com/Omodaka9375/DNSi" class="btn-primary">View on GitHub</a>
-          <a href="https://www.npmjs.com/package/@omodaka/dnsi" class="btn-secondary">npm: @omodaka/dnsi</a>
+          <a href="https://www.npmjs.com/package/@omodaka/dnsi" class="btn-primary">Install: npm i -g @omodaka/dnsi</a>
+          <a href="https://github.com/Omodaka9375/DNSi" class="btn-secondary">View on GitHub</a>
         </div>
       </div>
     </section>
@@ -699,7 +749,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         <a href="https://www.npmjs.com/package/@omodaka/dnsi">npm</a> .
         <a href="read.html?doc=OPERATIONS.md">Deploy</a> .
         <a href="read.html?doc=PLAIN.md">PLAIN.md</a><br />
-        Node 22+ . 35 kB . zero runtime dependencies.<br />
+        Node 22+ . 35 kB . zero runtime dependencies . Apache-2.0<br />
         From the same author as <a href="https://browserr.dev">Browserr</a>.
       </p>
     </div>
@@ -785,9 +835,10 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       });
     }
 
-    /* ---- Live ask over DNS-over-HTTPS (works from GitHub Pages, no backend) ----
+    /* ---- Live ask over OUR OWN DoH endpoint (ns.dnsi.dev, RFC 8484 wire format) ----
        Server text is injected with textContent only, never innerHTML. */
     const ASK_ZONE = 'dnsi.dev';
+    const DOH_URL = 'https://ns.dnsi.dev/dns-query';
     const BARE_TOOLS = ['time', 'uuid', 'echo', 'hash'];
 
     function encodeSegment(text) {
@@ -848,6 +899,63 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       return new TextDecoder().decode(new Uint8Array(bytes));
     }
 
+    /** Build a minimal DNS wire query (TXT) for a qname, base64url-encoded. */
+    function wireQuery(qname, qid) {
+      const labels = qname.split('.').map((l) => {
+        const b = new Uint8Array(l.length + 1);
+        b[0] = l.length;
+        for (let i = 0; i < l.length; i += 1) b[i + 1] = l.charCodeAt(i) & 0x7f;
+        return b;
+      });
+      const parts = [];
+      const head = new Uint8Array(12);
+      const dv = new DataView(head.buffer);
+      dv.setUint16(0, qid);
+      dv.setUint16(2, 0x0100); // RD
+      dv.setUint16(4, 1); // QDCOUNT
+      parts.push(head, ...labels, Uint8Array.of(0), Uint8Array.of(0, 16, 0, 1));
+      let total = 0;
+      for (const p of parts) total += p.length;
+      const out = new Uint8Array(total);
+      let o = 0;
+      for (const p of parts) { out.set(p, o); o += p.length; }
+      let bin = '';
+      for (const byte of out) bin += String.fromCharCode(byte);
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    /** Parse a wire-format DNS response: rcode + TXT strings. */
+    function parseWireResp(buf) {
+      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const rcode = dv.getUint16(2) & 0xf;
+      const qd = dv.getUint16(4);
+      const an = dv.getUint16(6);
+      let o = 12;
+      for (let i = 0; i < qd; i += 1) {
+        while (buf[o] !== 0) o += buf[o] + 1;
+        o += 5;
+      }
+      const txts = [];
+      for (let n = 0; n < an; n += 1) {
+        // record = NAME (pointer or labels) + TYPE + CLASS + TTL + RDLENGTH + RDATA
+        if ((buf[o] & 0xc0) === 0xc0) o += 2;
+        else { while (buf[o] !== 0) o += buf[o] + 1; o += 1; }
+        const type = dv.getUint16(o);
+        const rdlen = dv.getUint16(o + 8);
+        if (type === 16) {
+          const rdata = buf.subarray(o + 10, o + 10 + rdlen);
+          let j = 0;
+          while (j < rdata.length) {
+            const l = rdata[j]; j += 1;
+            txts.push(new TextDecoder().decode(rdata.subarray(j, j + l)));
+            j += l;
+          }
+        }
+        o += 10 + rdlen;
+      }
+      return { rcode, txts: txts.join('') };
+    }
+
     async function askLive() {
       const input = document.getElementById('askInput');
       const out = document.getElementById('askOut');
@@ -858,12 +966,14 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
-        const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(qname) + '&type=TXT', { signal: ctrl.signal });
+        const r = await fetch(DOH_URL + '?dns=' + wireQuery(qname, (Math.random() * 0xffff) | 0), {
+          signal: ctrl.signal,
+          headers: { accept: 'application/dns-message' },
+        });
         clearTimeout(t);
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        const j = await r.json();
-        if (j.Status !== 0) throw new Error('rcode ' + j.Status);
-        const txts = (j.Answer || []).filter((a) => a.type === 16).map((a) => (a.data || '').replace(/"/g, '')).join('');
+        const { rcode, txts } = parseWireResp(new Uint8Array(await r.arrayBuffer()));
+        if (rcode !== 0) throw new Error('rcode ' + rcode);
         if (!txts) throw new Error('no TXT answer');
 
         // split the answer text from the related hints, render hints clickable
@@ -911,15 +1021,28 @@ pnpm ask -- "how do I split a git commit" --local</pre>
       document.getElementById('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') askLive(); });
     }
 
-    /* ---- Live usage badge: stats.ask.dnsi.dev over DoH JSON ---- */
+    /* ---- Built-in tool buttons: fill the askbox and ask immediately ---- */
+    for (const btn of document.querySelectorAll('.tg[data-q]')) {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById('askInput');
+        if (input) input.value = btn.dataset.q || '';
+        askLive();
+        const box = document.getElementById('askbox');
+        if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    /* ---- Live usage badge: stats.ask.dnsi.dev over our own DoH ---- */
     (async () => {
       const badge = document.getElementById('heroStats');
       if (!badge) return;
       try {
-        const r = await fetch('https://dns.google/resolve?name=' + encodeURIComponent('stats.ask.dnsi.dev') + '&type=TXT');
-        const j = await r.json();
-        const txts = (j.Answer || []).filter((a) => a.type === 16).map((a) => (a.data || '').replace(/"/g, '')).join('');
-        if (j.Status !== 0 || !txts) return;
+        const r = await fetch(DOH_URL + '?dns=' + wireQuery('stats.ask.' + ASK_ZONE, (Math.random() * 0xffff) | 0), {
+          headers: { accept: 'application/dns-message' },
+        });
+        if (!r.ok) return;
+        const { rcode, txts } = parseWireResp(new Uint8Array(await r.arrayBuffer()));
+        if (rcode !== 0 || !txts) return;
         const qs = txts.match(/questions (\d+)/);
         const up = txts.match(/uptime (\S+)/);
         const hit = txts.match(/cache-hits \d+ \((\d+)% hit\)/);
@@ -946,20 +1069,6 @@ pnpm ask -- "how do I split a git commit" --local</pre>
     } else {
       for (const el of revealables) el.classList.add('visible');
     }
-
-    /* ---- Live GitHub info ---- */
-    (async () => {
-      const REPO = 'Omodaka9375/DNSi';
-      try {
-        const r = await fetch('https://api.github.com/repos/' + REPO, { headers: { Accept: 'application/vnd.github+json' } });
-        if (!r.ok) throw new Error(String(r.status));
-        const j = await r.json();
-        const stars = document.getElementById('heroStars');
-        if (stars && typeof j.stargazers_count === 'number') {
-          stars.textContent = j.stargazers_count.toLocaleString() + ' stars';
-        }
-      } catch (e) { /* offline or rate-limited: keep fallback text */ }
-    })();
 
     /* ---- Animated device session ---- */
     const body = document.getElementById('termBody');
