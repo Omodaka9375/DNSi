@@ -71,7 +71,7 @@ can serve an open zone and a token-protected zone at the same time
 ## Quick start
 
 ```bash
-npx dnsi-ask "what is dnsi"   # asks the public demo server (dnsi.dev, once live):
+npx dnsi-ask "what is dnsi"   # asks the public instance at dnsi.dev:
                               # prepared answers about DNSi, no AI, no key needed
 npx dnsi-ask --tool time      # built-in tools: time, uuid, echo, hash
 ```

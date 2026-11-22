@@ -18,7 +18,7 @@ you:    ask "why is the sky blue"        (as a weird-looking website name)
 dnsi:   "Because air scatters blue light more than red..."   (as a text answer)
 ```
 
-The fastest way to feel it (once the public instance is live):
+The fastest way to feel it:
 
 ```bash
 npx dnsi-ask "what is dnsi"

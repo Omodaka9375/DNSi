@@ -501,7 +501,7 @@ b'A question box that rides on DNS: ...'</pre>
             <input id="askInput" type="text" placeholder="what is dnsi" spellcheck="false" aria-label="Question to resolve over DNS">
             <button id="askBtn" type="button">Ask</button>
           </div>
-          <div class="askout" id="askOut" aria-live="polite">The public instance answers here the moment dnsi.dev is live. Until then: run your own (window 1 above) and ask it over your LAN.</div>
+          <div class="askout" id="askOut" aria-live="polite"></div>
         </div>
         <p class="lead" style="margin: 24px 0 0;">
           Related questions ride inside the answer as dig-ready names, so one answer points into
@@ -809,7 +809,7 @@ pnpm ask -- "how do I split a git commit" --local</pre>
         out.firstChild.textContent = txts;
       } catch (e) {
         out.innerHTML = '<span class="a-dim"></span>';
-        out.firstChild.textContent = 'The public instance is not answering yet. Run your own (window 1 above) and ask it locally: npx dnsi-ask "' + q + '" --local';
+        out.firstChild.textContent = 'No answer just now - is the public instance awake? You can always run your own: npx dnsi-ask "' + q + '" --local';
       }
     }
 
